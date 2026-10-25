@@ -7,11 +7,141 @@ A full-stack, production-ready MERN web application engineered to coordinate urg
 
 ---
 
+## 👥 Teammates Quickstart & Onboarding Guide
+
+Welcome team! This repository is organized as a clean **monorepo** containing both the React frontend (`client/`) and Express backend (`server/`). Follow these exact steps to get up and running in under 3 minutes:
+
+### ⚡ 3-Minute Setup
+
+```bash
+# 1. Clone repository (once pushed to GitHub)
+git clone <your-github-repo-url>
+cd mini-project
+
+# 2. Install backend dependencies
+cd server
+npm install
+
+# 3. Create server/.env (or copy from server/.env.example)
+# Default values will connect to local MongoDB at mongodb://127.0.0.1:27017/blood_donation_db
+copy .env.example .env
+
+# 4. Seed database with synthetic demo accounts & hospital requests
+node src/utils/seed.js
+
+# 5. Run automated test suite to verify everything passes
+node tests/run-tests.js
+
+# 6. Install frontend dependencies
+cd ../client
+npm install
+copy .env.example .env
+
+# 7. Start both servers
+# In Terminal 1 (from server directory):
+node src/server.js       # Starts on http://localhost:5000
+
+# In Terminal 2 (from client directory):
+npm run dev             # Starts on http://localhost:5173
+```
+
+---
+
+## 📂 Project Structure & Directory Map
+
+```
+mini-project/
+├── client/                           # Frontend React Application
+│   ├── public/                       # Static public assets (icons, favicon)
+│   ├── src/
+│   │   ├── components/               # Reusable UI Components
+│   │   │   ├── BloodGroupBadge.jsx   # Styled badge with blood drop icon
+│   │   │   ├── Footer.jsx            # Disclaimer and platform metadata
+│   │   │   ├── LeafletMap.jsx        # OpenStreetMap Leaflet component
+│   │   │   ├── Modal.jsx             # Accessible dialog modal
+│   │   │   ├── Navbar.jsx            # Responsive navigation & availability toggle
+│   │   │   ├── ProtectedRoute.jsx    # Role-based route guard
+│   │   │   └── StatusBadge.jsx       # Request status and urgency badges
+│   │   ├── context/
+│   │   │   ├── AuthContext.jsx       # User state, JWT storage, role helpers
+│   │   │   └── NotificationContext.jsx # Real-time unread alert polling
+│   │   ├── pages/                    # 10 Role & Public Pages
+│   │   │   ├── AdminDashboard.jsx    # DB analytics, donor verify queue, audit logs
+│   │   │   ├── CreateRequestPage.jsx # New emergency request with hospital presets
+│   │   │   ├── DonorDashboard.jsx    # Live availability switch & matching requests
+│   │   │   ├── DonorProfilePage.jsx  # GPS coords, preferences & deactivation
+│   │   │   ├── LandingPage.jsx       # Live feed, 1-click logins, compatibility guide
+│   │   │   ├── LoginPage.jsx         # Sign in with 1-click demo accounts
+│   │   │   ├── NearbyDonorsPage.jsx  # Radius slider, radar map, multi-contact tool
+│   │   │   ├── NotificationCenterPage.jsx # Inbox for emergency alerts
+│   │   │   ├── RegisterPage.jsx      # Donor vs Requester registration
+│   │   │   └── RequestDetailsPage.jsx# Coordination tracking & lifecycle state machine
+│   │   ├── services/                 # Axios API services
+│   │   │   ├── adminService.js
+│   │   │   ├── api.js                # Base axios instance with JWT interceptor
+│   │   │   ├── authService.js
+│   │   │   ├── donorService.js
+│   │   │   ├── notificationService.js
+│   │   │   └── requestService.js
+│   │   ├── App.jsx                   # React Router routing configuration
+│   │   ├── index.css                 # Tailwind CSS v4 styling & theme setup
+│   │   └── main.jsx                  # React application entrypoint
+│   ├── vite.config.js                # Vite configuration with /api proxy to port 5000
+│   └── package.json
+│
+├── server/                           # Backend Node.js / Express API
+│   ├── src/
+│   │   ├── config/
+│   │   │   └── db.js                 # Mongoose connection with autoIndex
+│   │   ├── controllers/              # REST Request Controllers
+│   │   │   ├── adminController.js    # Database aggregate metrics & verifications
+│   │   │   ├── authController.js     # Register, login, /me, deactivation
+│   │   │   ├── donorController.js    # Availability, profile, history, nearby search
+│   │   │   ├── notificationController.js # Mark read, pagination
+│   │   │   ├── requestController.js  # Request lifecycle state machine
+│   │   │   └── responseController.js # Accept/decline responses
+│   │   ├── middleware/
+│   │   │   ├── auth.js               # authenticate & authorize(...roles)
+│   │   │   ├── errorHandler.js       # Centralized error formatter
+│   │   │   └── rateLimiter.js        # Express-rate-limit protection
+│   │   ├── models/                   # Mongoose Schemas & 2dsphere Indexes
+│   │   │   ├── AuditLog.js           # Administrative action audit trail
+│   │   │   ├── BloodRequest.js       # Hospital location, units, urgency, status
+│   │   │   ├── DonorProfile.js       # BloodGroup, 2dsphere location, availability
+│   │   │   ├── DonorResponse.js      # Unique compound index {request, donor}
+│   │   │   ├── Notification.js       # In-app and email delivery status
+│   │   │   └── User.js               # Name, email, hashed password, role
+│   │   ├── routes/                   # Express Routers
+│   │   │   ├── adminRoutes.js
+│   │   │   ├── authRoutes.js
+│   │   │   ├── donorRoutes.js
+│   │   │   ├── notificationRoutes.js
+│   │   │   ├── requestRoutes.js
+│   │   │   └── responseRoutes.js
+│   │   ├── services/
+│   │   │   ├── auditService.js       # Action logger
+│   │   │   ├── matchingService.js    # Rule-based $geoNear geospatial matching
+│   │   │   └── notificationService.js# Nodemailer + Ethereal email dispatch
+│   │   ├── utils/
+│   │   │   └── seed.js               # Synthetic test data generator
+│   │   ├── app.js                    # Express app configuration
+│   │   └── server.js                 # HTTP listener entrypoint
+│   ├── tests/
+│   │   └── run-tests.js              # 18 automated integration & unit tests
+│   └── package.json
+│
+├── postman_collection.json           # Pre-configured Postman API collection
+├── package.json                      # Root workspace scripts
+└── README.md
+```
+
+---
+
 ## 1. System Architecture & Tech Stack
 
 ```mermaid
 graph TD
-    Client["React + Vite Client<br/>(Tailwind CSS, Leaflet OpenStreetMap, Axios)"] -->|REST API + JWT Bearer| Server["Node.js + Express.js Backend"]
+    Client["React 19 + Vite Frontend<br/>(Tailwind CSS, Leaflet OpenStreetMap, Axios)"] -->|REST API + JWT Bearer| Server["Node.js + Express.js Backend"]
     Server -->|Mongoose ODM + 2dsphere Indexes| MongoDB[("MongoDB Atlas / Local MongoDB<br/>(Geospatial & Relational Data)")]
     Server -->|Nodemailer / Ethereal / SMTP| Mailer["Email Dispatch Service"]
     Server -->|Role Middleware| RBAC["Role-Based Access Control<br/>(Donor, Requester, Admin)"]
@@ -80,63 +210,7 @@ Pre-seeded synthetic demo accounts ready for immediate testing:
 
 ---
 
-## 5. Getting Started (Local Setup)
-
-### Prerequisites
-- [Node.js](https://nodejs.org/) (v18 or v20+)
-- [MongoDB](https://www.mongodb.com/try/download/community) running locally on port `27017` or a MongoDB Atlas connection URI.
-
-### Step 1: Install Dependencies
-```bash
-# Install backend dependencies
-cd server
-npm install
-
-# Install frontend dependencies
-cd ../client
-npm install
-```
-
-### Step 2: Configure Environment Variables
-Create `.env` in the `server` directory (or use default configuration):
-```env
-PORT=5000
-NODE_ENV=development
-MONGODB_URI=mongodb://127.0.0.1:27017/blood_donation_db
-JWT_SECRET=emergency_blood_matching_secret_key_change_in_production_2026
-JWT_EXPIRE=30d
-ADMIN_INVITE_KEY=admin_emergency_2026
-CLIENT_URL=http://localhost:5173
-```
-
-### Step 3: Seed Synthetic Demo Data
-```bash
-cd server
-node src/utils/seed.js
-```
-
-### Step 4: Run the Application
-Open two terminals or run concurrently:
-
-**Terminal 1 (Backend Server):**
-```bash
-cd server
-node src/server.js
-# Backend API runs on http://localhost:5000
-```
-
-**Terminal 2 (Frontend Client):**
-```bash
-cd client
-npm run dev
-# Vite client runs on http://localhost:5173
-```
-
-Visit **`http://localhost:5173`** in your browser.
-
----
-
-## 6. Automated Testing
+## 5. Automated Testing
 
 Run the automated integration and unit test suite verifying authentication, RBAC restrictions, geospatial queries, request lifecycle state transitions, and database aggregations:
 
@@ -154,7 +228,7 @@ TEST SUMMARY: 18 PASSED, 0 FAILED
 
 ---
 
-## 7. REST API Documentation
+## 6. REST API Documentation
 
 ### Authentication
 - `POST /api/auth/register` — Register a new donor or requester.
@@ -196,51 +270,52 @@ TEST SUMMARY: 18 PASSED, 0 FAILED
 
 ---
 
-## 8. Postman Collection
+## 7. Postman Collection
 
 Import `postman_collection.json` located in the root repository directly into Postman to run pre-configured requests against all endpoints with environment variables.
 
 ---
 
-## 9. Privacy & Security Practices
-
-1. **Minimal Disclosure:** Exact donor coordinates and contact details are masked during open discovery. They are only disclosed after a donor accepts an invitation.
-2. **MongoDB 2dsphere Indexes:** Coordinates are indexed in `[longitude, latitude]` order, ensuring sub-millisecond proximity queries.
-3. **Audit Logging:** Every administrative verification, request cancellation, and status transition is recorded in `AuditLog`.
-4. **Rate Limiting & Headers:** Express-rate-limit safeguards sensitive authentication routes, and Helmet provides HTTP header security.
-
----
-
-## 10. Deployment Instructions
+## 8. Deployment Instructions
 
 ### Database (MongoDB Atlas)
-1. Create a free M0 cluster on [MongoDB Atlas](https://www.mongodb.com/cloud/atlas).
+1. Create a free cluster on [MongoDB Atlas](https://www.mongodb.com/cloud/atlas).
 2. Create a database user and whitelist network access (`0.0.0.0/0`).
-3. Obtain the connection string `mongodb+srv://...` and set as `MONGODB_URI`.
+3. Obtain connection URI and set as `MONGODB_URI`.
 
 ### Backend (Render / Railway)
 1. Link your GitHub repository to Render as a **Web Service**.
 2. Root directory: `server`.
 3. Build command: `npm install`.
 4. Start command: `node src/server.js`.
-5. Add environment variables: `NODE_ENV=production`, `MONGODB_URI`, `JWT_SECRET`, `CLIENT_URL`.
+5. Environment variables: `NODE_ENV=production`, `MONGODB_URI`, `JWT_SECRET`, `CLIENT_URL`.
 
 ### Frontend (Netlify / Vercel)
 1. Link your GitHub repository to Netlify.
 2. Base directory: `client`.
 3. Build command: `npm run build`.
 4. Publish directory: `dist`.
-5. Set environment variable: `VITE_API_URL=https://your-render-backend.onrender.com/api`.
+5. Environment variable: `VITE_API_URL=https://your-render-backend.onrender.com/api`.
 
 ---
 
-## 11. College Project Deliverables Checklist
+## 🚀 Pushing to GitHub (For Team Leads & Collaborators)
 
-- [x] Complete frontend (React + Vite + Leaflet) and backend (Node + Express) source code.
-- [x] MongoDB schemas with 2dsphere indexes and unique response constraints.
-- [x] RESTful API endpoints with JWT authentication and role authorization.
-- [x] Comprehensive synthetic seed script (`server/src/utils/seed.js`).
-- [x] Automated backend integration tests (`server/tests/run-tests.js`).
-- [x] Postman collection file (`postman_collection.json`).
-- [x] Role-specific dashboards for Donors, Requesters, and Blood Bank Admins.
-- [x] Medical disclaimer and privacy-compliant donor proximity matching.
+To push this codebase to your team's GitHub repository:
+
+```bash
+# 1. Create a new empty repository on GitHub (e.g., blood-donation-system)
+# 2. In your terminal at the project root:
+git remote add origin https://github.com/<your-username>/<your-repo-name>.git
+
+# 3. Ensure branch is main
+git branch -M main
+
+# 4. Push code
+git push -u origin main
+```
+
+### Team Branching Strategy
+- `main`: Protected production-ready branch.
+- `feature/<feature-name>`: Branches for new enhancements (e.g. `feature/sms-twilio`, `feature/hospital-inventory`).
+- Create Pull Requests (PRs) into `main` after verifying with `node tests/run-tests.js` and `npm run build`.
