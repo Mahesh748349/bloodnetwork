@@ -1,0 +1,20 @@
+{
+  "name": "blood-donation-and-emergency-matching-system",
+  "version": "1.0.0",
+  "description": "Full-stack emergency blood donation and matching platform",
+  "scripts": {
+    "dev:server": "node --watch server/src/server.js",
+    "dev:client": "npm --prefix client run dev",
+    "seed": "node server/src/utils/seed.js",
+    "test:server": "node server/tests/run-tests.js"
+  },
+  "keywords": [
+    "blood-donation",
+    "emergency-matching",
+    "leaflet",
+    "geojson",
+    "mern"
+  ],
+  "author": "",
+  "license": "MIT"
+}
