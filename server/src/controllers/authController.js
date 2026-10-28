@@ -24,6 +24,7 @@ const register = async (req, res, next) => {
       password,
       role = 'donor',
       phone = '',
+      organizationId = null,
       // Donor specific fields
       bloodGroup,
       coordinates, // [longitude, latitude]
@@ -55,9 +56,8 @@ const register = async (req, res, next) => {
 
     // Role validation: prevent unauthorized admin creation unless explicit secret key or first user
     let userRole = role;
-    if (userRole === 'admin') {
-      const adminCount = await User.countDocuments({ role: 'admin' });
-      // Allow if no admin exists yet, or if valid ADMIN_INVITE_KEY provided
+    if (userRole === 'admin' || userRole === 'platform_admin') {
+      const adminCount = await User.countDocuments({ role: { $in: ['admin', 'platform_admin'] } });
       const adminKey = req.body.adminSecretKey || req.headers['x-admin-key'];
       const expectedKey = process.env.ADMIN_INVITE_KEY || 'admin_emergency_2026';
       if (adminCount > 0 && adminKey !== expectedKey) {
@@ -75,6 +75,7 @@ const register = async (req, res, next) => {
       password,
       role: userRole,
       phone,
+      organizationId: organizationId || null,
     });
 
     let donorProfile = null;
@@ -121,6 +122,7 @@ const register = async (req, res, next) => {
         role: user.role,
         phone: user.phone,
         status: user.status,
+        organizationId: user.organizationId,
       },
       donorProfile,
     });
@@ -145,7 +147,10 @@ const login = async (req, res, next) => {
       });
     }
 
-    const user = await User.findOne({ email: email.toLowerCase() }).select('+password');
+    const user = await User.findOne({ email: email.toLowerCase() })
+      .select('+password')
+      .populate('organizationId', 'name organizationType status');
+
     if (!user) {
       return res.status(401).json({
         success: false,
@@ -186,6 +191,8 @@ const login = async (req, res, next) => {
         role: user.role,
         phone: user.phone,
         status: user.status,
+        organizationId: user.organizationId?._id || user.organizationId,
+        organization: user.organizationId,
       },
       donorProfile,
     });
@@ -201,7 +208,10 @@ const login = async (req, res, next) => {
  */
 const getMe = async (req, res, next) => {
   try {
-    const user = await User.findById(req.user.id);
+    const user = await User.findById(req.user.id).populate(
+      'organizationId',
+      'name organizationType status address contactInformation'
+    );
     let donorProfile = null;
 
     if (user.role === 'donor') {
@@ -217,6 +227,8 @@ const getMe = async (req, res, next) => {
         role: user.role,
         phone: user.phone,
         status: user.status,
+        organizationId: user.organizationId?._id || user.organizationId,
+        organization: user.organizationId,
         createdAt: user.createdAt,
       },
       donorProfile,

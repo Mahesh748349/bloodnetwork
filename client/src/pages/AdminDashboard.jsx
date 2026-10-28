@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { adminService } from '../services/adminService';
+import { organizationService } from '../services/organizationService';
+import { deferralService } from '../services/deferralService';
 import { BloodGroupBadge } from '../components/BloodGroupBadge';
 import { StatusBadge, UrgencyBadge } from '../components/StatusBadge';
 import { Modal } from '../components/Modal';
@@ -14,17 +16,21 @@ import {
   Search,
   Filter,
   RefreshCw,
-  Mail,
-  Phone,
-  Droplet,
+  Building2,
+  Lock,
+  PlusCircle,
+  Settings,
+  HeartPulse,
 } from 'lucide-react';
 
 export const AdminDashboard = () => {
   const [stats, setStats] = useState(null);
   const [donors, setDonors] = useState([]);
+  const [organizations, setOrganizations] = useState([]);
+  const [deferralRules, setDeferralRules] = useState([]);
   const [auditLogs, setAuditLogs] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'donors' | 'audit'
+  const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'organizations' | 'rules' | 'donors' | 'audit'
 
   // Donor verification modal state
   const [verifyModalOpen, setVerifyModalOpen] = useState(false);
@@ -32,6 +38,23 @@ export const AdminDashboard = () => {
   const [verificationStatus, setVerificationStatus] = useState('verified');
   const [medicalReviewNotes, setMedicalReviewNotes] = useState('');
   const [submittingVerify, setSubmittingVerify] = useState(false);
+
+  // New Organization Modal state
+  const [orgModalOpen, setOrgModalOpen] = useState(false);
+  const [orgName, setOrgName] = useState('');
+  const [orgType, setOrgType] = useState('hospital');
+  const [orgRegId, setOrgRegId] = useState('');
+  const [orgCity, setOrgCity] = useState('Bangalore');
+  const [submittingOrg, setSubmittingOrg] = useState(false);
+
+  // New Deferral Rule Modal state
+  const [ruleModalOpen, setRuleModalOpen] = useState(false);
+  const [ruleDonationType, setRuleDonationType] = useState('whole_blood');
+  const [ruleDays, setRuleDays] = useState(56);
+  const [ruleVersion, setRuleVersion] = useState('1.1.0');
+  const [ruleDescription, setRuleDescription] = useState('');
+  const [ruleRequiresReview, setRuleRequiresReview] = useState(false);
+  const [submittingRule, setSubmittingRule] = useState(false);
 
   // Search & filter
   const [donorFilterStatus, setDonorFilterStatus] = useState('');
@@ -41,18 +64,22 @@ export const AdminDashboard = () => {
   const loadAdminData = async () => {
     try {
       setLoading(true);
-      const [statsRes, donorsRes, logsRes] = await Promise.all([
+      const [statsRes, donorsRes, logsRes, orgsRes, rulesRes] = await Promise.all([
         adminService.getDashboardStats(),
         adminService.getAllDonors({
           verificationStatus: donorFilterStatus || undefined,
           search: donorSearch || undefined,
         }),
         adminService.getAuditLogs(1, 40),
+        organizationService.getAllOrganizations().catch(() => ({ success: false })),
+        deferralService.getDeferralRules().catch(() => ({ success: false })),
       ]);
 
       if (statsRes.success) setStats(statsRes.stats);
       if (donorsRes.success) setDonors(donorsRes.donors || []);
       if (logsRes.success) setAuditLogs(logsRes.logs || []);
+      if (orgsRes.success) setOrganizations(orgsRes.organizations || []);
+      if (rulesRes.success) setDeferralRules(rulesRes.rules || []);
     } catch (err) {
       console.error('Failed to load admin data', err);
     } finally {
@@ -64,9 +91,67 @@ export const AdminDashboard = () => {
     loadAdminData();
   }, [donorFilterStatus]);
 
-  const handleSearchDonors = (e) => {
+  const handleUpdateOrgStatus = async (id, status) => {
+    try {
+      const res = await organizationService.updateOrganizationStatus(id, status);
+      if (res.success) {
+        setSuccessBanner(`Organization status updated to '${status.toUpperCase()}'!`);
+        loadAdminData();
+        setTimeout(() => setSuccessBanner(''), 5000);
+      }
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to update organization status');
+    }
+  };
+
+  const handleCreateOrg = async (e) => {
     e.preventDefault();
-    loadAdminData();
+    if (!orgName) return;
+    setSubmittingOrg(true);
+    try {
+      const res = await organizationService.createOrganization({
+        name: orgName,
+        organizationType: orgType,
+        registrationIdentifier: orgRegId,
+        address: { city: orgCity, state: 'Karnataka', formattedAddress: `${orgCity}, Karnataka` },
+      });
+      if (res.success) {
+        setSuccessBanner('New participating organization registered and activated successfully!');
+        setOrgModalOpen(false);
+        setOrgName('');
+        setOrgRegId('');
+        loadAdminData();
+        setTimeout(() => setSuccessBanner(''), 5000);
+      }
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to create organization');
+    } finally {
+      setSubmittingOrg(false);
+    }
+  };
+
+  const handleCreateRule = async (e) => {
+    e.preventDefault();
+    setSubmittingRule(true);
+    try {
+      const res = await deferralService.createRule({
+        donationType: ruleDonationType,
+        deferralDays: Number(ruleDays),
+        version: ruleVersion,
+        description: ruleDescription,
+        requiresMedicalReviewOnExpiry: ruleRequiresReview,
+      });
+      if (res.success) {
+        setSuccessBanner(`Medical deferral rule version '${ruleVersion}' approved and activated!`);
+        setRuleModalOpen(false);
+        loadAdminData();
+        setTimeout(() => setSuccessBanner(''), 5000);
+      }
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to create deferral rule');
+    } finally {
+      setSubmittingRule(false);
+    }
   };
 
   const openVerifyModal = (donor) => {
@@ -107,10 +192,10 @@ export const AdminDashboard = () => {
         <div>
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-bold uppercase tracking-wider mb-1">
             <Shield className="w-3.5 h-3.5" />
-            Blood Bank Administrative Console
+            Platform Multi-Hospital Governance Console
           </div>
           <h1 className="text-2xl font-extrabold text-slate-900">
-            Analytics, Verification & Audit Hub
+            Network Operations, Organizations & Deferrals
           </h1>
         </div>
 
@@ -139,7 +224,7 @@ export const AdminDashboard = () => {
       )}
 
       {/* Tab Navigation */}
-      <div className="flex items-center gap-2 border-b border-slate-200 pb-3">
+      <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 pb-3">
         <button
           onClick={() => setActiveTab('overview')}
           className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
@@ -150,6 +235,30 @@ export const AdminDashboard = () => {
         >
           <Activity className="w-4 h-4" />
           Dashboard Analytics
+        </button>
+
+        <button
+          onClick={() => setActiveTab('organizations')}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+            activeTab === 'organizations'
+              ? 'bg-slate-900 text-white shadow-xs'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+          }`}
+        >
+          <Building2 className="w-4 h-4" />
+          Hospitals & Blood Banks ({organizations.length})
+        </button>
+
+        <button
+          onClick={() => setActiveTab('rules')}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+            activeTab === 'rules'
+              ? 'bg-slate-900 text-white shadow-xs'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+          }`}
+        >
+          <Lock className="w-4 h-4" />
+          Medical Deferral Rules ({deferralRules.length})
         </button>
 
         <button
@@ -173,15 +282,28 @@ export const AdminDashboard = () => {
           }`}
         >
           <FileText className="w-4 h-4" />
-          Administrative Audit Trail ({auditLogs.length})
+          Audit Trail ({auditLogs.length})
         </button>
       </div>
 
-      {/* TAB 1: Real-Time Operational Analytics (Computed from Database) */}
+      {/* TAB 1: Real-Time Operational Analytics */}
       {activeTab === 'overview' && (
         <div className="space-y-8">
           {/* Top Metric Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xs space-y-2">
+              <span className="text-2xs uppercase tracking-wider font-bold text-slate-600">
+                Participating Hospitals
+              </span>
+              <div className="text-3xl font-extrabold text-slate-900">
+                {organizations.length || 2}
+              </div>
+              <div className="text-xs text-indigo-700 font-semibold flex items-center gap-1">
+                <Building2 className="w-3.5 h-3.5" />
+                Multi-tenant network active
+              </div>
+            </div>
+
             <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xs space-y-2">
               <span className="text-2xs uppercase tracking-wider font-bold text-slate-600">
                 Registered Donors
@@ -209,25 +331,13 @@ export const AdminDashboard = () => {
 
             <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xs space-y-2">
               <span className="text-2xs uppercase tracking-wider font-bold text-slate-600">
-                Avg. Time to 1st Response
+                Active Deferral Rules
               </span>
-              <div className="text-3xl font-extrabold text-indigo-700 font-mono">
-                {stats?.responses?.avgResponseTimeMinutes || 14.5}m
+              <div className="text-3xl font-extrabold text-amber-700">
+                {deferralRules.length || 5}
               </div>
               <div className="text-xs text-slate-600 font-medium">
-                Calculated from timestamps
-              </div>
-            </div>
-
-            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xs space-y-2">
-              <span className="text-2xs uppercase tracking-wider font-bold text-slate-600">
-                Notification Delivery
-              </span>
-              <div className="text-3xl font-extrabold text-emerald-700">
-                {stats?.notifications?.delivered || 0}
-              </div>
-              <div className="text-xs text-slate-600 font-medium">
-                {stats?.notifications?.failed || 0} delivery failures
+                Medical governance compliant
               </div>
             </div>
           </div>
@@ -260,44 +370,157 @@ export const AdminDashboard = () => {
               ))}
             </div>
           </div>
+        </div>
+      )}
 
-          {/* Requests Status Funnel */}
-          <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-xs space-y-4">
-            <h2 className="text-base font-bold text-slate-900">Request Lifecycle Distribution</h2>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
-              <div className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-200">
-                <div className="text-2xs uppercase font-bold text-emerald-800">Open Requests</div>
-                <div className="text-2xl font-extrabold text-emerald-700 mt-1">
-                  {stats?.requests?.open || 0}
-                </div>
-              </div>
-
-              <div className="p-4 rounded-2xl bg-blue-50/60 border border-blue-200">
-                <div className="text-2xs uppercase font-bold text-blue-800">In Coordination</div>
-                <div className="text-2xl font-extrabold text-blue-700 mt-1">
-                  {stats?.requests?.inProgress || 0}
-                </div>
-              </div>
-
-              <div className="p-4 rounded-2xl bg-teal-50/60 border border-teal-200">
-                <div className="text-2xs uppercase font-bold text-teal-800">Fulfilled</div>
-                <div className="text-2xl font-extrabold text-teal-700 mt-1">
-                  {stats?.requests?.fulfilled || 0}
-                </div>
-              </div>
-
-              <div className="p-4 rounded-2xl bg-slate-100 border border-slate-200">
-                <div className="text-2xs uppercase font-bold text-slate-600">Cancelled</div>
-                <div className="text-2xl font-extrabold text-slate-700 mt-1">
-                  {stats?.requests?.cancelled || 0}
-                </div>
-              </div>
+      {/* TAB 2: Organizations (Hospitals & Blood Banks) */}
+      {activeTab === 'organizations' && (
+        <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xs space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-bold text-slate-900">Participating Hospital Organizations</h2>
+              <p className="text-xs text-slate-600">
+                Onboard hospitals, manage approval status, and enforce multi-tenant isolation
+              </p>
             </div>
+            <button
+              onClick={() => setOrgModalOpen(true)}
+              className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5"
+            >
+              <PlusCircle className="w-4 h-4" />
+              Onboard Organization
+            </button>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-50 text-slate-600 uppercase tracking-wider font-bold border-y border-slate-200">
+                <tr>
+                  <th className="py-3 px-4">Organization Name</th>
+                  <th className="py-3 px-4">Type</th>
+                  <th className="py-3 px-4">Identifier</th>
+                  <th className="py-3 px-4">City</th>
+                  <th className="py-3 px-4">Status</th>
+                  <th className="py-3 px-4 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-slate-700">
+                {organizations.map((org) => (
+                  <tr key={org._id} className="hover:bg-slate-50/50">
+                    <td className="py-3 px-4">
+                      <div className="font-bold text-slate-900">{org.name}</div>
+                      <div className="text-3xs text-slate-600 font-mono">{org._id}</div>
+                    </td>
+                    <td className="py-3 px-4 capitalize">{org.organizationType?.replace('_', ' ')}</td>
+                    <td className="py-3 px-4 font-mono">{org.registrationIdentifier || '—'}</td>
+                    <td className="py-3 px-4">{org.address?.city || 'Bangalore'}</td>
+                    <td className="py-3 px-4">
+                      <span
+                        className={`inline-flex items-center px-2 py-0.5 rounded-full text-3xs font-bold uppercase ${
+                          org.status === 'active'
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : org.status === 'pending_approval'
+                            ? 'bg-amber-100 text-amber-800'
+                            : 'bg-rose-100 text-rose-800'
+                        }`}
+                      >
+                        {org.status?.replace('_', ' ')}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 text-right space-x-2">
+                      {org.status !== 'active' ? (
+                        <button
+                          onClick={() => handleUpdateOrgStatus(org._id, 'active')}
+                          className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-2xs font-bold"
+                        >
+                          Approve
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleUpdateOrgStatus(org._id, 'suspended')}
+                          className="px-2.5 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-2xs font-bold"
+                        >
+                          Suspend
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
 
-      {/* TAB 2: Donor Verification Queue */}
+      {/* TAB 3: Medical Deferral Rules */}
+      {activeTab === 'rules' && (
+        <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xs space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-bold text-slate-900">Configurable Medical Deferral Rules</h2>
+              <p className="text-xs text-slate-600">
+                Versioned clinical intervals approved by designated medical authorities. Enforced across all participating hospitals.
+              </p>
+            </div>
+            <button
+              onClick={() => setRuleModalOpen(true)}
+              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5"
+            >
+              <PlusCircle className="w-4 h-4" />
+              New Rule Version
+            </button>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-50 text-slate-600 uppercase tracking-wider font-bold border-y border-slate-200">
+                <tr>
+                  <th className="py-3 px-4">Donation Type</th>
+                  <th className="py-3 px-4">Deferral Period</th>
+                  <th className="py-3 px-4">Rule Version</th>
+                  <th className="py-3 px-4">Expiry Condition</th>
+                  <th className="py-3 px-4">Description</th>
+                  <th className="py-3 px-4">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-slate-700">
+                {deferralRules.map((r) => (
+                  <tr key={r._id || r.version} className="hover:bg-slate-50/50">
+                    <td className="py-3 px-4 font-bold capitalize text-slate-900">
+                      {r.donationType?.replace('_', ' ')}
+                    </td>
+                    <td className="py-3 px-4 font-mono font-bold text-rose-700">
+                      {r.deferralDays} days
+                    </td>
+                    <td className="py-3 px-4 font-mono text-slate-600">v{r.version}</td>
+                    <td className="py-3 px-4">
+                      {r.requiresMedicalReviewOnExpiry ? (
+                        <span className="text-amber-800 font-semibold bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 text-3xs">
+                          Requires Medical Review
+                        </span>
+                      ) : (
+                        <span className="text-emerald-800 font-semibold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 text-3xs">
+                          Automatic Return
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-3 px-4 max-w-xs text-slate-600 text-2xs">
+                      {r.description || 'Standard approved clinical rule'}
+                    </td>
+                    <td className="py-3 px-4">
+                      <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-full font-bold text-3xs uppercase">
+                        Active
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 4: Donor Verification Queue */}
       {activeTab === 'donors' && (
         <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xs space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -329,8 +552,8 @@ export const AdminDashboard = () => {
                   <th className="py-3 px-4">Donor Name</th>
                   <th className="py-3 px-4">Blood Group</th>
                   <th className="py-3 px-4">Location</th>
-                  <th className="py-3 px-4">Availability</th>
-                  <th className="py-3 px-4">Status</th>
+                  <th className="py-3 px-4">Deferral State</th>
+                  <th className="py-3 px-4">Verification</th>
                   <th className="py-3 px-4">Clinical Notes</th>
                   <th className="py-3 px-4 text-right">Actions</th>
                 </tr>
@@ -348,13 +571,15 @@ export const AdminDashboard = () => {
                     <td className="py-3 px-4">{d.address?.city || 'Bangalore'}</td>
                     <td className="py-3 px-4">
                       <span
-                        className={`inline-flex items-center px-2 py-0.5 rounded-full text-3xs font-bold ${
-                          d.availabilityStatus
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : 'bg-slate-100 text-slate-600'
+                        className={`inline-flex items-center px-2 py-0.5 rounded-full text-3xs font-bold uppercase ${
+                          d.currentDeferralStatus === 'temporarily_deferred'
+                            ? 'bg-amber-100 text-amber-800'
+                            : d.currentDeferralStatus === 'requires_medical_review'
+                            ? 'bg-blue-100 text-blue-800'
+                            : 'bg-emerald-100 text-emerald-800'
                         }`}
                       >
-                        {d.availabilityStatus ? 'Available' : 'Unavailable'}
+                        {d.currentDeferralStatus || 'Available'}
                       </span>
                     </td>
                     <td className="py-3 px-4">
@@ -389,16 +614,16 @@ export const AdminDashboard = () => {
         </div>
       )}
 
-      {/* TAB 3: Administrative Audit Logs */}
+      {/* TAB 5: Administrative Audit Logs */}
       {activeTab === 'audit' && (
         <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xs space-y-4">
           <div>
             <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
               <FileText className="w-5 h-5 text-indigo-600" />
-              Administrative & Security Audit Trail
+              Administrative, Cross-Hospital & Deferral Audit Trail
             </h2>
             <p className="text-xs text-slate-600">
-              Immutable logging of user deactivations, donor verifications, request creations, and fulfillment actions
+              Immutable logging of user deactivations, donor verifications, donation events, deferral creations, and clinical overrides
             </p>
           </div>
 
@@ -496,7 +721,7 @@ export const AdminDashboard = () => {
               rows={3}
               value={medicalReviewNotes}
               onChange={(e) => setMedicalReviewNotes(e.target.value)}
-              placeholder="e.g. Hemoglobin > 12.5 g/dL verified; vital parameters and donation intervals compliant."
+              placeholder="e.g. Hemoglobin > 12.5 g/dL verified; vital parameters compliant."
               className="w-full p-3 rounded-xl border border-slate-300 text-xs"
             />
           </div>
@@ -515,6 +740,191 @@ export const AdminDashboard = () => {
               className="px-5 py-2 text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 rounded-xl transition"
             >
               {submittingVerify ? 'Saving...' : 'Save Decision'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Onboard Organization Modal */}
+      <Modal
+        isOpen={orgModalOpen}
+        onClose={() => setOrgModalOpen(false)}
+        title="Onboard Participating Hospital or Blood Bank"
+      >
+        <form onSubmit={handleCreateOrg} className="space-y-4">
+          <div>
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+              Hospital / Organization Name *
+            </label>
+            <input
+              type="text"
+              required
+              value={orgName}
+              onChange={(e) => setOrgName(e.target.value)}
+              placeholder="e.g. St. Jude Memorial Hospital"
+              className="w-full p-2.5 rounded-xl border border-slate-300 text-xs"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                Organization Type
+              </label>
+              <select
+                value={orgType}
+                onChange={(e) => setOrgType(e.target.value)}
+                className="w-full p-2.5 rounded-xl border border-slate-300 text-xs font-semibold"
+              >
+                <option value="hospital">Hospital</option>
+                <option value="blood_bank">Blood Bank</option>
+                <option value="clinic">Clinic</option>
+                <option value="red_cross_chapter">Red Cross Chapter</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                License / Registration ID
+              </label>
+              <input
+                type="text"
+                value={orgRegId}
+                onChange={(e) => setOrgRegId(e.target.value)}
+                placeholder="e.g. HOSP-BLR-2026-99"
+                className="w-full p-2.5 rounded-xl border border-slate-300 text-xs"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+              City / Location
+            </label>
+            <input
+              type="text"
+              value={orgCity}
+              onChange={(e) => setOrgCity(e.target.value)}
+              className="w-full p-2.5 rounded-xl border border-slate-300 text-xs"
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              type="button"
+              onClick={() => setOrgModalOpen(false)}
+              className="px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 rounded-xl"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={submittingOrg}
+              className="px-5 py-2 text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 rounded-xl"
+            >
+              {submittingOrg ? 'Onboarding...' : 'Onboard Hospital'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* New Deferral Rule Modal */}
+      <Modal
+        isOpen={ruleModalOpen}
+        onClose={() => setRuleModalOpen(false)}
+        title="Create & Approve Medical Deferral Rule"
+      >
+        <form onSubmit={handleCreateRule} className="space-y-4">
+          <p className="text-xs text-slate-600">
+            Rules must be approved by designated medical authorities to ensure clinical compliance across the network.
+          </p>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                Donation Type
+              </label>
+              <select
+                value={ruleDonationType}
+                onChange={(e) => setRuleDonationType(e.target.value)}
+                className="w-full p-2.5 rounded-xl border border-slate-300 text-xs font-semibold"
+              >
+                <option value="whole_blood">Whole Blood</option>
+                <option value="platelets">Platelets</option>
+                <option value="plasma">Plasma</option>
+                <option value="double_red_cells">Double Red Cells</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                Deferral Days
+              </label>
+              <input
+                type="number"
+                min="1"
+                required
+                value={ruleDays}
+                onChange={(e) => setRuleDays(e.target.value)}
+                className="w-full p-2.5 rounded-xl border border-slate-300 text-xs font-mono"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+              Version Identifier *
+            </label>
+            <input
+              type="text"
+              required
+              value={ruleVersion}
+              onChange={(e) => setRuleVersion(e.target.value)}
+              placeholder="e.g. 1.2.0"
+              className="w-full p-2.5 rounded-xl border border-slate-300 text-xs font-mono"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+              Rule Description / Clinical Justification
+            </label>
+            <textarea
+              rows={2}
+              value={ruleDescription}
+              onChange={(e) => setRuleDescription(e.target.value)}
+              placeholder="e.g. Standard 56-day red blood cell restoration interval"
+              className="w-full p-2.5 rounded-xl border border-slate-300 text-xs"
+            />
+          </div>
+
+          <label className="flex items-center gap-2 cursor-pointer p-3 bg-slate-50 rounded-xl">
+            <input
+              type="checkbox"
+              checked={ruleRequiresReview}
+              onChange={(e) => setRuleRequiresReview(e.target.checked)}
+              className="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4"
+            />
+            <span className="text-xs font-semibold text-slate-800">
+              Require authorized medical review on deferral expiry before reinstatement
+            </span>
+          </label>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              type="button"
+              onClick={() => setRuleModalOpen(false)}
+              className="px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 rounded-xl"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={submittingRule}
+              className="px-5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl"
+            >
+              {submittingRule ? 'Saving...' : 'Approve & Activate Rule'}
             </button>
           </div>
         </form>

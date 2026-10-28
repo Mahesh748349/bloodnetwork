@@ -3,6 +3,7 @@ const BloodRequest = require('../models/BloodRequest');
 const DonorProfile = require('../models/DonorProfile');
 const User = require('../models/User');
 const { sendNotification } = require('../services/notificationService');
+const { evaluateDonorEligibility } = require('../services/deferralService');
 
 /**
  * @route   POST /api/requests/:id/responses
@@ -35,6 +36,18 @@ const respondToRequest = async (req, res, next) => {
         success: false,
         message: `Cannot respond to a request that is already ${bloodRequest.status}`,
       });
+    }
+
+    // If accepting, enforce active deferral check
+    if (responseStatus === 'accepted') {
+      const eligibility = await evaluateDonorEligibility(req.user.id);
+      if (!eligibility.eligible) {
+        return res.status(403).json({
+          success: false,
+          message: `Cannot accept donation request: You are currently deferred (${eligibility.status}).`,
+          eligibility,
+        });
+      }
     }
 
     const donorProfile = await DonorProfile.findOne({ user: req.user.id });

@@ -17,6 +17,9 @@ import {
   MessageSquare,
   ShieldCheck,
   RefreshCw,
+  Building2,
+  Lock,
+  FileCheck,
 } from 'lucide-react';
 
 export const DonorDashboard = () => {
@@ -24,6 +27,8 @@ export const DonorDashboard = () => {
 
   const [nearbyRequests, setNearbyRequests] = useState([]);
   const [donationHistory, setDonationHistory] = useState([]);
+  const [verifiedDonations, setVerifiedDonations] = useState([]);
+  const [deferralInfo, setDeferralInfo] = useState(null);
   const [loading, setLoading] = useState(true);
   const [filterAllGroups, setFilterAllGroups] = useState(false);
   const [toggleLoading, setToggleLoading] = useState(false);
@@ -39,13 +44,17 @@ export const DonorDashboard = () => {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [reqRes, histRes] = await Promise.all([
+      const [reqRes, histRes, defRes, donRes] = await Promise.all([
         donorService.getNearbyRequests(filterAllGroups),
         donorService.getDonationHistory(),
+        donorService.getMyDeferralStatus().catch(() => ({ success: false })),
+        donorService.getMyDonations().catch(() => ({ success: false })),
       ]);
 
       if (reqRes.success) setNearbyRequests(reqRes.requests || []);
       if (histRes.success) setDonationHistory(histRes.history || []);
+      if (defRes.success) setDeferralInfo(defRes);
+      if (donRes.success) setVerifiedDonations(donRes.donations || []);
     } catch (err) {
       console.error('Failed to load donor dashboard data', err);
     } finally {
@@ -57,19 +66,38 @@ export const DonorDashboard = () => {
     loadData();
   }, [filterAllGroups]);
 
+  const isDeferred =
+    deferralInfo?.currentDeferralStatus === 'temporarily_deferred' ||
+    donorProfile?.currentDeferralStatus === 'temporarily_deferred';
+
+  const requiresReview =
+    deferralInfo?.currentDeferralStatus === 'requires_medical_review' ||
+    donorProfile?.currentDeferralStatus === 'requires_medical_review';
+
   const handleToggleAvailability = async () => {
     if (!donorProfile || toggleLoading) return;
+    if (isDeferred) {
+      alert('You cannot toggle availability to active while an active medical deferral is in place.');
+      return;
+    }
     try {
       setToggleLoading(true);
       await updateDonorAvailability(!donorProfile.availabilityStatus);
+      await loadData();
     } catch (e) {
-      console.error(e);
+      alert(e.response?.data?.message || 'Failed to update availability');
     } finally {
       setToggleLoading(false);
     }
   };
 
   const openRespondModal = (requestItem, defaultStatus = 'accepted') => {
+    if (defaultStatus === 'accepted' && isDeferred) {
+      alert(
+        'You cannot accept donation requests while temporarily deferred following a verified donation.'
+      );
+      return;
+    }
     setSelectedRequest(requestItem);
     setResponseStatus(defaultStatus);
     setDonorNotes('');
@@ -118,6 +146,72 @@ export const DonorDashboard = () => {
         </div>
       )}
 
+      {/* Cross-Hospital Temporary Deferral Alert Banner */}
+      {isDeferred && (
+        <div className="p-5 rounded-3xl bg-amber-50 border-2 border-amber-300 text-amber-900 shadow-sm space-y-3">
+          <div className="flex items-start gap-3">
+            <Lock className="w-6 h-6 text-amber-600 shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <h3 className="text-base font-extrabold text-amber-950">
+                  Temporary Post-Donation Deferral Active (Multi-Hospital Enforced)
+                </h3>
+                <span className="px-2.5 py-0.5 rounded-full text-2xs font-extrabold uppercase bg-amber-200 text-amber-900">
+                  Cross-Hospital Lock
+                </span>
+              </div>
+              <p className="text-xs text-amber-800 leading-relaxed font-medium">
+                {deferralInfo?.explanation ||
+                  'Your donor status is temporarily deferred following a verified donation. You cannot be selected for another donation through this platform until the applicable deferral period has ended and any required review is complete.'}
+              </p>
+              {deferralInfo?.currentDeferralUntil && (
+                <div className="pt-1 flex flex-wrap items-center gap-4 text-xs font-semibold text-amber-900">
+                  <div>
+                    Deferral End Date:{' '}
+                    <strong className="font-extrabold underline">
+                      {new Date(deferralInfo.currentDeferralUntil).toLocaleDateString(undefined, {
+                        weekday: 'short',
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric',
+                      })}
+                    </strong>
+                  </div>
+                  <div>
+                    Enforcement:{' '}
+                    <span className="text-slate-700 font-normal">
+                      All participating hospitals apply this shared status.
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="text-2xs text-amber-700 bg-amber-100/70 p-2.5 rounded-xl border border-amber-200 flex items-center justify-between">
+            <span>
+              🔒 As a medically authorized safety standard, donors cannot manually shorten or remove an active deferral.
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Medical Review Required Banner */}
+      {requiresReview && (
+        <div className="p-5 rounded-3xl bg-blue-50 border-2 border-blue-300 text-blue-900 shadow-sm space-y-2">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-6 h-6 text-blue-600 shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <h3 className="text-base font-extrabold text-blue-950">
+                Medical Review Required for Reinstatement
+              </h3>
+              <p className="text-xs text-blue-800 leading-relaxed">
+                Your post-donation deferral interval has completed, but your return to eligibility requires review by authorized blood bank medical personnel. You will automatically appear in matching results once review is recorded.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header Profile Summary Card */}
       <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xs">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
@@ -128,13 +222,21 @@ export const DonorDashboard = () => {
                 <h1 className="text-2xl font-extrabold text-slate-900">{user?.name}</h1>
                 <span
                   className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold ${
-                    donorProfile?.verificationStatus === 'verified'
+                    isDeferred
+                      ? 'bg-amber-100 text-amber-800'
+                      : requiresReview
+                      ? 'bg-blue-100 text-blue-800'
+                      : donorProfile?.verificationStatus === 'verified'
                       ? 'bg-emerald-100 text-emerald-800'
-                      : 'bg-amber-100 text-amber-800'
+                      : 'bg-slate-100 text-slate-800'
                   }`}
                 >
                   <ShieldCheck className="w-3.5 h-3.5" />
-                  {donorProfile?.verificationStatus === 'verified'
+                  {isDeferred
+                    ? 'Temporarily Deferred'
+                    : requiresReview
+                    ? 'Requires Medical Review'
+                    : donorProfile?.verificationStatus === 'verified'
                     ? 'Verified Donor'
                     : 'Verification Pending'}
                 </span>
@@ -155,20 +257,29 @@ export const DonorDashboard = () => {
                   Emergency Availability
                 </div>
                 <div className="text-xs font-semibold text-slate-900">
-                  {donorProfile?.availabilityStatus ? 'Ready to Donate' : 'Temporarily Unavailable'}
+                  {isDeferred
+                    ? 'Locked (Deferred)'
+                    : donorProfile?.availabilityStatus
+                    ? 'Ready to Donate'
+                    : 'Temporarily Unavailable'}
                 </div>
               </div>
               <button
                 type="button"
                 onClick={handleToggleAvailability}
-                disabled={toggleLoading}
+                disabled={toggleLoading || isDeferred}
+                title={isDeferred ? 'Availability is locked during deferral period' : 'Toggle availability'}
                 className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                  donorProfile?.availabilityStatus ? 'bg-emerald-500' : 'bg-slate-300'
+                  isDeferred
+                    ? 'bg-amber-400 opacity-60 cursor-not-allowed'
+                    : donorProfile?.availabilityStatus
+                    ? 'bg-emerald-500'
+                    : 'bg-slate-300'
                 }`}
               >
                 <span
                   className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
-                    donorProfile?.availabilityStatus ? 'translate-x-5' : 'translate-x-0'
+                    donorProfile?.availabilityStatus && !isDeferred ? 'translate-x-5' : 'translate-x-0'
                   }`}
                 />
               </button>
@@ -177,10 +288,10 @@ export const DonorDashboard = () => {
             {/* Total Donations Count */}
             <div className="bg-slate-50 px-4 py-3 rounded-2xl border border-slate-200/80 text-center">
               <div className="text-2xs uppercase tracking-wider text-slate-600 font-bold">
-                Transfusions
+                Verified Donations
               </div>
               <div className="text-xl font-extrabold text-slate-900">
-                {donorProfile?.totalDonationsCompleted || 0}
+                {donorProfile?.totalDonationsCompleted || verifiedDonations.length || 0}
               </div>
             </div>
           </div>
@@ -190,7 +301,7 @@ export const DonorDashboard = () => {
         <div className="mt-6 pt-4 border-t border-slate-100 flex items-start gap-2.5 text-xs text-slate-600">
           <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
           <span>
-            Self-reported availability does not guarantee clinical eligibility. Medical parameters, minimum hemoglobin levels, and cross-matching will be confirmed by hospital blood bank personnel prior to donation.
+            Centralized platform deferral is an administrative safeguard enforcing cross-network mandatory rest periods. Individual clinical donor screening and hemoglobin checks remain mandatory at each hospital collection site.
           </span>
         </div>
       </div>
@@ -303,6 +414,10 @@ export const DonorDashboard = () => {
                         {req.myResponse.responseStatus}
                       </span>
                     </div>
+                  ) : isDeferred ? (
+                    <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs text-center font-medium">
+                      🔒 Ineligible during active deferral period
+                    </div>
                   ) : (
                     <div className="grid grid-cols-2 gap-2">
                       <button
@@ -336,43 +451,53 @@ export const DonorDashboard = () => {
         )}
       </div>
 
-      {/* Donation History Section */}
+      {/* Verified Donation Events & Multi-Hospital History */}
       <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xs space-y-4">
-        <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-          <Calendar className="w-5 h-5 text-indigo-600" />
-          Donation & Response History
-        </h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+            <Building2 className="w-5 h-5 text-indigo-600" />
+            Verified Cross-Hospital Donation Events
+          </h2>
+          <span className="text-xs text-slate-600 font-medium">
+            {verifiedDonations.length} Verified Events
+          </span>
+        </div>
 
-        {donationHistory.length > 0 ? (
+        {verifiedDonations.length > 0 ? (
           <div className="divide-y divide-slate-100">
-            {donationHistory.map((item) => (
-              <div key={item._id} className="py-3.5 flex items-center justify-between gap-4">
+            {verifiedDonations.map((item) => (
+              <div key={item._id} className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
-                  <div className="text-sm font-bold text-slate-900">
-                    {item.bloodRequest?.hospital?.name || 'Hospital Donation Center'}
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-bold text-slate-900">
+                      {item.organizationId?.name || 'Participating Blood Center'}
+                    </span>
+                    <span className="text-3xs uppercase px-2 py-0.5 rounded-full bg-slate-100 font-mono text-slate-600">
+                      {item.eventId}
+                    </span>
                   </div>
-                  <div className="text-xs text-slate-600">
-                    Units: {item.bloodRequest?.unitsRequested || 1} • Status:{' '}
-                    <span className="capitalize">{item.bloodRequest?.status || 'Completed'}</span>
+                  <div className="text-xs text-slate-600 mt-0.5">
+                    Type: <strong className="capitalize">{item.donationType?.replace('_', ' ')}</strong> • Units: {item.unitsCollected} • Date:{' '}
+                    {new Date(item.donationDate).toLocaleDateString()}
                   </div>
-                  {item.donorNotes && (
-                    <div className="text-2xs text-slate-600 italic mt-0.5">"{item.donorNotes}"</div>
-                  )}
+                  {item.notes && <div className="text-2xs text-slate-600 italic mt-0.5">"{item.notes}"</div>}
                 </div>
-                <div className="text-right">
+                <div className="text-right shrink-0">
                   <div className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200 inline-block">
-                    Accepted & Verified
+                    Verified Donation
                   </div>
-                  <div className="text-3xs text-slate-600 mt-1">
-                    {new Date(item.updatedAt).toLocaleDateString()}
-                  </div>
+                  {item.deferralUntil && (
+                    <div className="text-3xs text-amber-700 mt-1 font-medium">
+                      Deferral to: {new Date(item.deferralUntil).toLocaleDateString()}
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
           </div>
         ) : (
-          <p className="text-xs text-slate-600 py-4">
-            No past donation records logged yet. Verified donation records will appear here after hospital completion.
+          <p className="text-xs text-slate-600 py-3">
+            No verified cross-hospital donation events recorded yet. Completed donations verified by participating blood centers will appear here.
           </p>
         )}
       </div>
@@ -427,7 +552,7 @@ export const DonorDashboard = () => {
 
           <div>
             <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-              Note for Requester / Medical Coordinator (Optional)
+              Note for Hospital Coordinator (Optional)
             </label>
             <textarea
               rows={3}

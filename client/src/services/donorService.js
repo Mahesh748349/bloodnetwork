@@ -30,4 +30,14 @@ export const donorService = {
     const response = await api.get('/donors/nearby', { params });
     return response.data;
   },
+
+  getMyDeferralStatus: async () => {
+    const response = await api.get('/donors/me/deferral');
+    return response.data;
+  },
+
+  getMyDonations: async () => {
+    const response = await api.get('/donors/me/donations');
+    return response.data;
+  },
 };

@@ -38,7 +38,23 @@ const getMyProfile = async (req, res, next) => {
  */
 const updateMyProfile = async (req, res, next) => {
   try {
-    const { bloodGroup, coordinates, address, contactPreferences, consentGiven } = req.body;
+    const {
+      bloodGroup,
+      coordinates,
+      address,
+      contactPreferences,
+      consentGiven,
+      currentDeferralStatus,
+      currentDeferralUntil,
+    } = req.body;
+
+    // Reject any unauthorized attempt by donor to clear or alter deferral status
+    if (currentDeferralStatus !== undefined || currentDeferralUntil !== undefined) {
+      return res.status(403).json({
+        success: false,
+        message: 'Donors are not permitted to alter or remove medical deferral status directly.',
+      });
+    }
 
     let profile = await DonorProfile.findOne({ user: req.user.id });
     if (!profile) {
@@ -116,27 +132,36 @@ const updateAvailability = async (req, res, next) => {
       });
     }
 
-    const profile = await DonorProfile.findOneAndUpdate(
-      { user: req.user.id },
-      {
-        availabilityStatus,
-        lastAvailabilityUpdate: new Date(),
-      },
-      { returnDocument: 'after' }
-    );
-
-    if (!profile) {
+    const existingProfile = await DonorProfile.findOne({ user: req.user.id });
+    if (!existingProfile) {
       return res.status(404).json({
         success: false,
         message: 'Donor profile not found',
       });
     }
 
+    // A donor cannot manually remove or bypass an active deferral
+    if (
+      availabilityStatus === true &&
+      existingProfile.currentDeferralStatus === 'temporarily_deferred'
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot toggle availability to active while an active medical deferral is in effect.',
+        deferralStatus: existingProfile.currentDeferralStatus,
+        deferralUntil: existingProfile.currentDeferralUntil,
+      });
+    }
+
+    existingProfile.availabilityStatus = availabilityStatus;
+    existingProfile.lastAvailabilityUpdate = new Date();
+    await existingProfile.save();
+
     return res.status(200).json({
       success: true,
       message: `Availability updated to ${availabilityStatus ? 'AVAILABLE' : 'UNAVAILABLE'}`,
-      availabilityStatus: profile.availabilityStatus,
-      lastAvailabilityUpdate: profile.lastAvailabilityUpdate,
+      availabilityStatus: existingProfile.availabilityStatus,
+      lastAvailabilityUpdate: existingProfile.lastAvailabilityUpdate,
     });
   } catch (error) {
     next(error);

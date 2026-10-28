@@ -1,9 +1,21 @@
-# LifeFlow — Emergency Blood Donation & Donor Matching System
+# LifeFlow — Multi-Hospital Blood Donation Network & Deferral Management Platform
 
-A full-stack, production-ready MERN web application engineered to coordinate urgent blood donation requests with registered potential donors using MongoDB 2dsphere geospatial radius queries, real-time availability tracking, and automated multi-channel notifications.
+A full-stack, enterprise-grade MERN web platform engineered for multi-hospital blood donation coordination, geospatial emergency donor matching, and centralized cross-hospital donor deferral management.
 
 > **Clinical & Legal Disclaimer:**  
-> LifeFlow is a donor discovery and coordination network. It **does not** replace hospitals, clinical laboratories, blood banks, or medical compatibility testing. Matching blood groups does not guarantee biological compatibility. All blood transfusions, donor eligibility screenings, and cross-matching must be verified at certified medical facilities.
+> LifeFlow is an administrative donor discovery and coordination network. It **does not** replace hospitals, clinical laboratories, blood banks, or medical compatibility testing. Matching blood groups does not guarantee biological compatibility. All blood transfusions, donor eligibility screenings, and cross-matching must be verified at certified medical facilities. Software deferral status is an administrative safeguard, not a substitute for clinical donor screening at the blood collection facility.
+
+---
+
+## 🏥 Multi-Hospital Blood Donation Network & Deferral System
+
+The platform coordinates multiple independent hospital organizations and blood banks while maintaining a centralized, access-controlled donor identity and deferral registry:
+
+1. **Multi-Tenant Hospital Isolation:** Every hospital-owned record is associated with an `organizationId`. Hospital A cannot access or modify Hospital B's private requests or staff settings without platform-level authorization.
+2. **Centralized Donor Network & Cross-Hospital Deferral Enforcement:** Donors hold a platform-wide identity. When a donation is verified at Hospital A (e.g. 56-day whole blood deferral), Hospital B automatically sees the donor as temporarily deferred and excluded from matching.
+3. **Medical Governance & Versioned Deferral Rules:** Deferral intervals are driven by versioned, approved medical rules (`whole_blood`: 56d, `platelets`: 7d, `plasma`: 28d, `double_red_cells`: 112d) with clinical override capabilities.
+4. **Dynamic Expiration & Medical Review Conditions:** When a deferral period elapses, the system evaluates whether additional clinical review is required before returning the donor to eligibility.
+5. **Fail-Closed Safety:** If central verification is unavailable or conflicting, matching fails closed (ineligible) rather than risking an unsafe donation.
 
 ---
 
@@ -14,7 +26,7 @@ Welcome team! This repository is organized as a clean **monorepo** containing bo
 ### ⚡ 3-Minute Setup
 
 ```bash
-# 1. Clone repository (once pushed to GitHub)
+# 1. Clone repository
 git clone <your-github-repo-url>
 cd mini-project
 
@@ -23,13 +35,12 @@ cd server
 npm install
 
 # 3. Create server/.env (or copy from server/.env.example)
-# Default values will connect to local MongoDB at mongodb://127.0.0.1:27017/blood_donation_db
 copy .env.example .env
 
-# 4. Seed database with synthetic demo accounts & hospital requests
+# 4. Seed database with multi-hospital organizations & test accounts
 node src/utils/seed.js
 
-# 5. Run automated test suite to verify everything passes
+# 5. Run full 15-scenario automated test suite
 node tests/run-tests.js
 
 # 6. Install frontend dependencies

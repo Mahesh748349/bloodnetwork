@@ -14,7 +14,17 @@ const auditLogSchema = new mongoose.Schema(
     },
     recordModel: {
       type: String,
-      enum: ['User', 'DonorProfile', 'BloodRequest', 'DonorResponse', 'System'],
+      enum: [
+        'User',
+        'DonorProfile',
+        'BloodRequest',
+        'DonorResponse',
+        'System',
+        'Organization',
+        'DonationEvent',
+        'DonorDeferral',
+        'DeferralRule',
+      ],
       default: 'System',
     },
     recordId: {

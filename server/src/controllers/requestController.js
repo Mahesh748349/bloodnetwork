@@ -5,6 +5,7 @@ const DonorProfile = require('../models/DonorProfile');
 const { findMatchingDonors } = require('../services/matchingService');
 const { sendNotification } = require('../services/notificationService');
 const { logAction } = require('../services/auditService');
+const { evaluateDonorEligibility } = require('../services/deferralService');
 
 /**
  * Valid state transitions for BloodRequest lifecycle
@@ -53,6 +54,7 @@ const createRequest = async (req, res, next) => {
 
     const bloodRequest = await BloodRequest.create({
       requester: req.user.id,
+      organizationId: req.body.organizationId || req.user.organizationId || null,
       patientName: patientName || 'Emergency Patient',
       bloodGroup,
       unitsRequested: Number(unitsRequested),
@@ -111,14 +113,16 @@ const createRequest = async (req, res, next) => {
  */
 const getRequests = async (req, res, next) => {
   try {
-    const { bloodGroup, urgency, status, myRequestsOnly, search } = req.query;
+    const { bloodGroup, urgency, status, myRequestsOnly, search, organizationId } = req.query;
 
     const query = {};
 
-    if (myRequestsOnly === 'true' || req.user.role === 'requester') {
-      if (myRequestsOnly === 'true') {
-        query.requester = req.user.id;
-      }
+    if (myRequestsOnly === 'true') {
+      query.requester = req.user.id;
+    }
+
+    if (organizationId) {
+      query.organizationId = organizationId;
     }
 
     if (bloodGroup) {
@@ -210,13 +214,17 @@ const updateRequestStatus = async (req, res, next) => {
       });
     }
 
-    // Authorization check
+    // Authorization check - tenant isolation
     const isOwner = bloodRequest.requester.toString() === req.user.id;
-    const isAdmin = req.user.role === 'admin';
-    if (!isOwner && !isAdmin) {
+    const isOrgStaff =
+      bloodRequest.organizationId &&
+      req.user.organizationId &&
+      bloodRequest.organizationId.toString() === req.user.organizationId.toString();
+    const isPlatformAdmin = req.user.role === 'admin' || req.user.role === 'platform_admin';
+    if (!isOwner && !isOrgStaff && !isPlatformAdmin) {
       return res.status(403).json({
         success: false,
-        message: 'Not authorized to update status of this request',
+        message: 'Not authorized to update status of this request for another organization',
       });
     }
 
@@ -237,20 +245,6 @@ const updateRequestStatus = async (req, res, next) => {
 
     if (status === 'fulfilled') {
       bloodRequest.fulfilledAt = new Date();
-      // Update donation count on accepted donors
-      const acceptedResponses = await DonorResponse.find({
-        bloodRequest: bloodRequest._id,
-        responseStatus: 'accepted',
-      });
-      for (const resp of acceptedResponses) {
-        await DonorProfile.findOneAndUpdate(
-          { user: resp.donor },
-          {
-            $inc: { totalDonationsCompleted: 1 },
-            lastDonationDate: new Date(),
-          }
-        );
-      }
     } else if (status === 'cancelled') {
       bloodRequest.cancelledAt = new Date();
     }
@@ -294,11 +288,15 @@ const cancelRequest = async (req, res, next) => {
     }
 
     const isOwner = bloodRequest.requester.toString() === req.user.id;
-    const isAdmin = req.user.role === 'admin';
-    if (!isOwner && !isAdmin) {
+    const isOrgStaff =
+      bloodRequest.organizationId &&
+      req.user.organizationId &&
+      bloodRequest.organizationId.toString() === req.user.organizationId.toString();
+    const isPlatformAdmin = req.user.role === 'admin' || req.user.role === 'platform_admin';
+    if (!isOwner && !isOrgStaff && !isPlatformAdmin) {
       return res.status(403).json({
         success: false,
-        message: 'Not authorized to cancel this request',
+        message: 'Not authorized to cancel this request for another organization',
       });
     }
 
@@ -369,6 +367,12 @@ const contactMatchedDonors = async (req, res, next) => {
     for (const donorId of donorUserIds) {
       const donorUser = await User.findById(donorId);
       if (!donorUser) continue;
+
+      // Revalidate donor eligibility across network before inviting
+      const eligibility = await evaluateDonorEligibility(donorId);
+      if (!eligibility.eligible) {
+        continue;
+      }
 
       const donorProfile = await DonorProfile.findOne({ user: donorId });
 

@@ -7,6 +7,11 @@ const bloodRequestSchema = new mongoose.Schema(
       ref: 'User',
       required: true,
     },
+    organizationId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Organization',
+      default: null,
+    },
     patientName: {
       type: String,
       trim: true,
@@ -121,5 +126,6 @@ const bloodRequestSchema = new mongoose.Schema(
 bloodRequestSchema.index({ 'hospital.location': '2dsphere' });
 bloodRequestSchema.index({ status: 1, bloodGroup: 1, urgency: 1 });
 bloodRequestSchema.index({ requester: 1, createdAt: -1 });
+bloodRequestSchema.index({ organizationId: 1, createdAt: -1 });
 
 module.exports = mongoose.model('BloodRequest', bloodRequestSchema);

@@ -9,6 +9,9 @@ const requestRoutes = require('./routes/requestRoutes');
 const responseRoutes = require('./routes/responseRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const adminRoutes = require('./routes/adminRoutes');
+const organizationRoutes = require('./routes/organizationRoutes');
+const donationRoutes = require('./routes/donationRoutes');
+const deferralRoutes = require('./routes/deferralRoutes');
 const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
@@ -41,7 +44,7 @@ app.use(express.urlencoded({ extended: true }));
 app.get('/api/health', (req, res) => {
   res.status(200).json({
     status: 'ok',
-    service: 'Blood Donation & Emergency Matching API',
+    service: 'Multi-Hospital Blood Donation & Emergency Matching Platform',
     timestamp: new Date(),
     uptime: process.uptime(),
   });
@@ -54,6 +57,9 @@ app.use('/api/requests', requestRoutes);
 app.use('/api/responses', responseRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/organizations', organizationRoutes);
+app.use('/api/donations', donationRoutes);
+app.use('/api/deferrals', deferralRoutes);
 
 // 404 handler for unknown routes
 app.use((req, res, next) => {

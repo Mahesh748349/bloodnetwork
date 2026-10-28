@@ -1,5 +1,7 @@
 const DonorProfile = require('../models/DonorProfile');
 const DonorResponse = require('../models/DonorResponse');
+const DonorDeferral = require('../models/DonorDeferral');
+const { evaluateDonorEligibility } = require('./deferralService');
 
 // Blood compatibility table for reference
 // Key: recipient group -> array of compatible donor blood groups
@@ -15,13 +17,8 @@ const COMPATIBILITY_MATRIX = {
 };
 
 /**
- * Match available donors based on blood group, availability, and geographic proximity
- * @param {Object} options
- * @param {string} options.bloodGroup - Requested blood group
- * @param {Array<number>} options.coordinates - [longitude, latitude] of hospital or collection point
- * @param {number} options.radiusKm - Configurable search radius in kilometers (default 50)
- * @param {string} options.bloodRequestId - Optional request ID to filter already declined donors
- * @param {boolean} options.includeCompatible - Whether to include strictly compatible groups or exact match only
+ * Match available donors based on blood group, availability, deferral status, and geographic proximity
+ * Excludes deferred or clinically non-eligible donors across all participating hospitals.
  */
 const findMatchingDonors = async ({
   bloodGroup,
@@ -29,6 +26,7 @@ const findMatchingDonors = async ({
   radiusKm = 50,
   bloodRequestId = null,
   includeCompatible = false,
+  failClosedOnError = true,
 }) => {
   if (!coordinates || coordinates.length !== 2) {
     throw new Error('Valid [longitude, latitude] coordinates are required for geospatial matching.');
@@ -36,111 +34,153 @@ const findMatchingDonors = async ({
 
   const [lng, lat] = coordinates;
   const radiusInMeters = Math.max(1, Math.min(500, Number(radiusKm))) * 1000;
+  const now = new Date();
 
-  // Determine target blood groups
-  let targetGroups = [bloodGroup];
-  if (includeCompatible && COMPATIBILITY_MATRIX[bloodGroup]) {
-    targetGroups = COMPATIBILITY_MATRIX[bloodGroup];
-  }
+  try {
+    // 1. Identify donors with active deferrals across the entire network
+    const activeDeferrals = await DonorDeferral.find({
+      status: 'active',
+      endDate: { $gt: now },
+    }).distinct('donorId');
 
-  // Find donors who have already declined this request (to deprioritize or exclude)
-  let excludedUserIds = [];
-  let existingResponsesMap = {};
+    // 2. Identify donors whose deferrals require medical review
+    const reviewRequiredDeferrals = await DonorDeferral.find({
+      status: 'requires_medical_review',
+    }).distinct('donorId');
 
-  if (bloodRequestId) {
-    const responses = await DonorResponse.find({ bloodRequest: bloodRequestId }).lean();
-    responses.forEach((r) => {
-      existingResponsesMap[r.donor.toString()] = r.responseStatus;
-      if (r.responseStatus === 'declined' || r.responseStatus === 'unavailable') {
-        excludedUserIds.push(r.donor);
-      }
-    });
-  }
+    const deferredDonorUserIds = [...activeDeferrals, ...reviewRequiredDeferrals];
 
-  // MongoDB $geoNear aggregation with 2dsphere index
-  const matchCriteria = {
-    bloodGroup: { $in: targetGroups },
-    availabilityStatus: true,
-  };
+    // Determine target blood groups
+    let targetGroups = [bloodGroup];
+    if (includeCompatible && COMPATIBILITY_MATRIX[bloodGroup]) {
+      targetGroups = COMPATIBILITY_MATRIX[bloodGroup];
+    }
 
-  if (excludedUserIds.length > 0) {
-    matchCriteria.user = { $nin: excludedUserIds };
-  }
+    // Find donors who have already declined this request (to exclude)
+    let excludedUserIds = [...deferredDonorUserIds];
+    let existingResponsesMap = {};
 
-  const aggregatePipeline = [
-    {
-      $geoNear: {
-        near: {
-          type: 'Point',
-          coordinates: [lng, lat],
-        },
-        distanceField: 'distanceMeters',
-        maxDistance: radiusInMeters,
-        spherical: true,
-        query: matchCriteria,
+    if (bloodRequestId) {
+      const responses = await DonorResponse.find({ bloodRequest: bloodRequestId }).lean();
+      responses.forEach((r) => {
+        existingResponsesMap[r.donor.toString()] = r.responseStatus;
+        if (r.responseStatus === 'declined' || r.responseStatus === 'unavailable') {
+          excludedUserIds.push(r.donor);
+        }
+      });
+    }
+
+    // Exclude users based on match criteria
+    const matchCriteria = {
+      bloodGroup: { $in: targetGroups },
+      availabilityStatus: true,
+      currentDeferralStatus: {
+        $nin: ['temporarily_deferred', 'requires_medical_review', 'suspended', 'inactive'],
       },
-    },
-    // Populate user info
-    {
-      $lookup: {
-        from: 'users',
-        localField: 'user',
-        foreignField: '_id',
-        as: 'userDoc',
-      },
-    },
-    { $unwind: '$userDoc' },
-    // Filter active users only
-    {
-      $match: {
-        'userDoc.status': 'active',
-      },
-    },
-    // Project privacy-preserving fields
-    {
-      $project: {
-        _id: 1,
-        bloodGroup: 1,
-        availabilityStatus: 1,
-        lastAvailabilityUpdate: 1,
-        verificationStatus: 1,
-        totalDonationsCompleted: 1,
-        lastDonationDate: 1,
-        distanceKm: {
-          $round: [{ $divide: ['$distanceMeters', 1000] }, 1],
-        },
-        // Approximate city/state for location context without revealing exact residence
-        city: '$address.city',
-        state: '$address.state',
-        user: {
-          _id: '$userDoc._id',
-          name: '$userDoc.name',
-          role: '$userDoc.role',
-        },
-      },
-    },
-    {
-      $sort: { distanceKm: 1 },
-    },
-  ];
-
-  const matchedDonors = await DonorProfile.aggregate(aggregatePipeline);
-
-  // Attach response status if already contacted
-  const results = matchedDonors.map((donor) => {
-    const userIdStr = donor.user._id.toString();
-    const currentResponse = existingResponsesMap[userIdStr] || 'not_contacted';
-    return {
-      ...donor,
-      responseStatus: currentResponse,
-      isExactMatch: donor.bloodGroup === bloodGroup,
     };
-  });
 
-  return results;
+    if (excludedUserIds.length > 0) {
+      matchCriteria.user = { $nin: excludedUserIds };
+    }
+
+    const aggregatePipeline = [
+      {
+        $geoNear: {
+          near: {
+            type: 'Point',
+            coordinates: [lng, lat],
+          },
+          distanceField: 'distanceMeters',
+          maxDistance: radiusInMeters,
+          spherical: true,
+          query: matchCriteria,
+        },
+      },
+      // Populate user info
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'user',
+          foreignField: '_id',
+          as: 'userDoc',
+        },
+      },
+      { $unwind: '$userDoc' },
+      // Filter active users only
+      {
+        $match: {
+          'userDoc.status': 'active',
+        },
+      },
+      // Project privacy-preserving fields (minimal information necessary)
+      {
+        $project: {
+          _id: 1,
+          bloodGroup: 1,
+          availabilityStatus: 1,
+          currentDeferralStatus: 1,
+          currentDeferralUntil: 1,
+          lastAvailabilityUpdate: 1,
+          verificationStatus: 1,
+          totalDonationsCompleted: 1,
+          lastDonationDate: 1,
+          distanceKm: {
+            $round: [{ $divide: ['$distanceMeters', 1000] }, 1],
+          },
+          city: '$address.city',
+          state: '$address.state',
+          user: {
+            _id: '$userDoc._id',
+            name: '$userDoc.name',
+            role: '$userDoc.role',
+          },
+        },
+      },
+      {
+        $sort: { distanceKm: 1 },
+      },
+    ];
+
+    const matchedDonors = await DonorProfile.aggregate(aggregatePipeline);
+
+    // Dynamic secondary re-verification: verify each matched donor against deferral service
+    // Ensures real-time consistency even if a deferral was recorded seconds ago
+    const verifiedMatches = [];
+    for (const donor of matchedDonors) {
+      const eligibility = await evaluateDonorEligibility(donor.user._id);
+      if (eligibility.eligible) {
+        const userIdStr = donor.user._id.toString();
+        const currentResponse = existingResponsesMap[userIdStr] || 'not_contacted';
+
+        verifiedMatches.push({
+          ...donor,
+          eligibilityStatus: 'eligible',
+          responseStatus: currentResponse,
+          isExactMatch: donor.bloodGroup === bloodGroup,
+        });
+      }
+    }
+
+    return verifiedMatches;
+  } catch (error) {
+    console.error('[MatchingService Error]', error.message);
+    if (failClosedOnError) {
+      // Fail closed: return empty matches rather than falsely presenting potentially deferred donors
+      return [];
+    }
+    throw error;
+  }
+};
+
+/**
+ * Revalidate eligibility for a specific donor before invitation or scheduling
+ */
+const revalidateDonorEligibility = async (donorUserId) => {
+  return await evaluateDonorEligibility(donorUserId);
 };
 
 module.exports = {
   findMatchingDonors,
+  revalidateDonorEligibility,
   COMPATIBILITY_MATRIX,
 };

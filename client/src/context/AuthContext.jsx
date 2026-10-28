@@ -104,8 +104,10 @@ export const AuthProvider = ({ children }) => {
         refreshProfile,
         isAuthenticated: !!user,
         isDonor: user?.role === 'donor',
-        isRequester: user?.role === 'requester',
-        isAdmin: user?.role === 'admin',
+        isRequester: ['requester', 'hospital_admin', 'hospital_staff'].includes(user?.role),
+        isAdmin: ['admin', 'platform_admin'].includes(user?.role),
+        isHospitalStaff: ['requester', 'hospital_admin', 'hospital_staff'].includes(user?.role),
+        isPlatformAdmin: ['admin', 'platform_admin'].includes(user?.role),
       }}
     >
       {children}

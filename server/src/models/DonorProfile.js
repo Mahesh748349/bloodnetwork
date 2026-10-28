@@ -47,6 +47,30 @@ const donorProfileSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    currentDeferralStatus: {
+      type: String,
+      enum: [
+        'available',
+        'unavailable',
+        'temporarily_deferred',
+        'requires_medical_review',
+        'suspended',
+        'inactive',
+      ],
+      default: 'available',
+    },
+    currentDeferralUntil: {
+      type: Date,
+      default: null,
+    },
+    lastEligibilityReviewAt: {
+      type: Date,
+      default: null,
+    },
+    consentSettings: {
+      crossHospitalSharing: { type: Boolean, default: true },
+      emergencyAlerts: { type: Boolean, default: true },
+    },
     lastAvailabilityUpdate: {
       type: Date,
       default: Date.now,
@@ -91,6 +115,7 @@ const donorProfileSchema = new mongoose.Schema(
 
 // 2dsphere index for MongoDB geospatial proximity matching
 donorProfileSchema.index({ location: '2dsphere' });
-donorProfileSchema.index({ bloodGroup: 1, availabilityStatus: 1 });
+donorProfileSchema.index({ bloodGroup: 1, availabilityStatus: 1, currentDeferralStatus: 1 });
+donorProfileSchema.index({ currentDeferralStatus: 1, currentDeferralUntil: 1 });
 
 module.exports = mongoose.model('DonorProfile', donorProfileSchema);

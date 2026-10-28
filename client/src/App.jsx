@@ -45,11 +45,11 @@ export function App() {
             }
           />
 
-          {/* Requester Routes */}
+          {/* Hospital & Request Management Routes */}
           <Route
             path="/requester"
             element={
-              <ProtectedRoute allowedRoles={['requester', 'admin']}>
+              <ProtectedRoute allowedRoles={['requester', 'admin', 'hospital_admin', 'hospital_staff', 'platform_admin']}>
                 <RequesterDashboard />
               </ProtectedRoute>
             }
@@ -57,7 +57,7 @@ export function App() {
           <Route
             path="/requests/new"
             element={
-              <ProtectedRoute allowedRoles={['requester', 'admin']}>
+              <ProtectedRoute allowedRoles={['requester', 'admin', 'hospital_admin', 'hospital_staff', 'platform_admin']}>
                 <CreateRequestPage />
               </ProtectedRoute>
             }
@@ -65,7 +65,7 @@ export function App() {
           <Route
             path="/donors/discover"
             element={
-              <ProtectedRoute allowedRoles={['requester', 'admin']}>
+              <ProtectedRoute allowedRoles={['requester', 'admin', 'hospital_admin', 'hospital_staff', 'platform_admin']}>
                 <NearbyDonorsPage />
               </ProtectedRoute>
             }
@@ -89,11 +89,11 @@ export function App() {
             }
           />
 
-          {/* Protected Administrator Route */}
+          {/* Protected Platform Administrator Route */}
           <Route
             path="/admin"
             element={
-              <ProtectedRoute allowedRoles={['admin']}>
+              <ProtectedRoute allowedRoles={['admin', 'platform_admin']}>
                 <AdminDashboard />
               </ProtectedRoute>
             }

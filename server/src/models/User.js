@@ -31,10 +31,22 @@ const userSchema = new mongoose.Schema(
       trim: true,
       default: '',
     },
+    organizationId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Organization',
+      default: null,
+    },
     role: {
       type: String,
       enum: {
-        values: ['donor', 'requester', 'admin'],
+        values: [
+          'donor',
+          'requester',
+          'admin',
+          'hospital_admin',
+          'hospital_staff',
+          'platform_admin',
+        ],
         message: '{VALUE} is not a valid role',
       },
       default: 'donor',

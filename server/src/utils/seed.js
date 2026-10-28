@@ -7,6 +7,11 @@ const BloodRequest = require('../models/BloodRequest');
 const DonorResponse = require('../models/DonorResponse');
 const Notification = require('../models/Notification');
 const AuditLog = require('../models/AuditLog');
+const Organization = require('../models/Organization');
+const DonationEvent = require('../models/DonationEvent');
+const DonorDeferral = require('../models/DonorDeferral');
+const DeferralRule = require('../models/DeferralRule');
+const { ensureDefaultRules } = require('../services/deferralService');
 
 const seedData = async () => {
   try {
@@ -21,11 +26,19 @@ const seedData = async () => {
     await DonorResponse.deleteMany({});
     await Notification.deleteMany({});
     await AuditLog.deleteMany({});
+    await Organization.deleteMany({});
+    await DonationEvent.deleteMany({});
+    await DonorDeferral.deleteMany({});
+    await DeferralRule.deleteMany({});
     console.log('[Seeder] Cleared previous records.');
 
-    // 1. Create Blood Bank Administrator
+    // 1. Create Default Versioned Deferral Rules
+    await ensureDefaultRules();
+    console.log('[Seeder] Initialized Medical Deferral Rules (v1.0.0).');
+
+    // 2. Create Platform Administrator
     const adminUser = await User.create({
-      name: 'Dr. Evelyn Reed (Blood Bank Admin)',
+      name: 'Dr. Evelyn Reed (Platform Admin)',
       email: 'admin@bloodnetwork.org',
       password: 'admin123',
       phone: '+91 98765 43210',
@@ -33,27 +46,101 @@ const seedData = async () => {
       status: 'active',
     });
 
-    // 2. Create Requesters (Doctors / Hospital Coordinators)
+    // 3. Create Participating Hospital Organizations
+    const org1 = await Organization.create({
+      name: 'Manipal Hospital (Old Airport Road)',
+      organizationType: 'hospital',
+      registrationIdentifier: 'HOSP-MANIPAL-01',
+      address: {
+        street: '98 HAL Old Airport Rd, Kodihalli',
+        city: 'Bangalore',
+        state: 'Karnataka',
+        postalCode: '560017',
+        formattedAddress: '98 HAL Old Airport Rd, Kodihalli, Bangalore, Karnataka',
+      },
+      location: {
+        type: 'Point',
+        coordinates: [77.6514, 12.9592],
+      },
+      contactInformation: {
+        phone: '+91 80 2502 4444',
+        email: 'bloodbank@manipalhospitals.com',
+      },
+      status: 'active',
+      approvedBy: adminUser._id,
+      approvedAt: new Date(),
+    });
+
+    const org2 = await Organization.create({
+      name: 'Apollo Hospital (Bannerghatta)',
+      organizationType: 'hospital',
+      registrationIdentifier: 'HOSP-APOLLO-02',
+      address: {
+        street: '154/11 Bannerghatta Main Rd',
+        city: 'Bangalore',
+        state: 'Karnataka',
+        postalCode: '560076',
+        formattedAddress: '154/11 Bannerghatta Main Rd, Bangalore, Karnataka',
+      },
+      location: {
+        type: 'Point',
+        coordinates: [77.5993, 12.8938],
+      },
+      contactInformation: {
+        phone: '+91 80 2630 4050',
+        email: 'emergency@apollohospitals.com',
+      },
+      status: 'active',
+      approvedBy: adminUser._id,
+      approvedAt: new Date(),
+    });
+
+    const org3 = await Organization.create({
+      name: 'Victoria Hospital Blood Bank',
+      organizationType: 'blood_bank',
+      registrationIdentifier: 'BB-VICTORIA-03',
+      address: {
+        street: 'Near City Market, Fort Road',
+        city: 'Bangalore',
+        state: 'Karnataka',
+        postalCode: '560002',
+        formattedAddress: 'Near City Market, Fort Road, Bangalore, Karnataka',
+      },
+      location: {
+        type: 'Point',
+        coordinates: [77.5739, 12.9625],
+      },
+      contactInformation: {
+        phone: '+91 80 2670 1150',
+        email: 'bloodbank@victoriahospital.gov.in',
+      },
+      status: 'active',
+      approvedBy: adminUser._id,
+      approvedAt: new Date(),
+    });
+
+    // 4. Create Requesters / Hospital Staff
     const requester1 = await User.create({
-      name: 'Dr. Rajesh Sharma (City Care Trauma)',
+      name: 'Dr. Rajesh Sharma (Manipal Hospital)',
       email: 'dr.sharma@citycare.org',
       password: 'requester123',
       phone: '+91 91234 56789',
       role: 'requester',
+      organizationId: org1._id,
       status: 'active',
     });
 
     const requester2 = await User.create({
-      name: 'Nurse Sarah Jenkins (Metro Emergency)',
+      name: 'Nurse Sarah Jenkins (Apollo Hospital)',
       email: 'sarah.requester@metrohealth.org',
       password: 'requester123',
       phone: '+91 92345 67890',
       role: 'requester',
+      organizationId: org2._id,
       status: 'active',
     });
 
-    // 3. Create Donors with realistic GeoJSON coordinates around Bangalore, India
-    // (Bangalore center ~ 77.5946, 12.9716)
+    // 5. Create Donors with platform-wide identity
     const donorSeeds = [
       {
         name: 'Rahul Verma',
@@ -121,17 +208,17 @@ const seedData = async () => {
         lastDonation: new Date(Date.now() - 150 * 24 * 60 * 60 * 1000),
       },
       {
-        name: 'Vikram Singh',
+        name: 'Vikram Singh (Temporarily Deferred)',
         email: 'vikram.singh@example.com',
         phone: '+91 98450 66778',
         bloodGroup: 'A-',
         coordinates: [77.5703, 13.0031], // Malleshwaram
         city: 'Malleshwaram',
         state: 'Karnataka',
-        available: false, // Currently unavailable
+        available: false, // Locked due to deferral
         verified: 'verified',
-        donations: 2,
-        lastDonation: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+        donations: 3,
+        lastDonation: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000),
       },
       {
         name: 'Deepa Krishnan',
@@ -145,45 +232,6 @@ const seedData = async () => {
         verified: 'verified',
         donations: 5,
         lastDonation: new Date(Date.now() - 180 * 24 * 60 * 60 * 1000),
-      },
-      {
-        name: 'Rajesh Kumar',
-        email: 'rajesh.kumar@example.com',
-        phone: '+91 98450 88990',
-        bloodGroup: 'O+',
-        coordinates: [77.6762, 12.8452], // Electronic City
-        city: 'Electronic City',
-        state: 'Karnataka',
-        available: true,
-        verified: 'pending', // Pending verification
-        donations: 1,
-        lastDonation: new Date(Date.now() - 200 * 24 * 60 * 60 * 1000),
-      },
-      {
-        name: 'Pooja Hegde',
-        email: 'pooja.hegde@example.com',
-        phone: '+91 98450 99001',
-        bloodGroup: 'AB-',
-        coordinates: [77.5534, 12.9912], // Rajajinagar
-        city: 'Rajajinagar',
-        state: 'Karnataka',
-        available: true,
-        verified: 'verified',
-        donations: 3,
-        lastDonation: new Date(Date.now() - 140 * 24 * 60 * 60 * 1000),
-      },
-      {
-        name: 'Karthik Reddy',
-        email: 'karthik.reddy@example.com',
-        phone: '+91 98451 00112',
-        bloodGroup: 'O-',
-        coordinates: [77.5971, 13.0358], // Hebbal
-        city: 'Hebbal',
-        state: 'Karnataka',
-        available: true,
-        verified: 'verified',
-        donations: 4,
-        lastDonation: new Date(Date.now() - 105 * 24 * 60 * 60 * 1000),
       },
     ];
 
@@ -212,11 +260,15 @@ const seedData = async () => {
           formattedAddress: `${d.city}, Bangalore, Karnataka`,
         },
         availabilityStatus: d.available,
+        currentDeferralStatus: d.name.includes('Deferred') ? 'temporarily_deferred' : 'available',
+        currentDeferralUntil: d.name.includes('Deferred')
+          ? new Date(Date.now() + 41 * 24 * 60 * 60 * 1000)
+          : null,
         lastAvailabilityUpdate: new Date(),
         verificationStatus: d.verified,
         medicalReviewNotes:
           d.verified === 'verified'
-            ? 'Clinically screened. Hemoglobin levels and vital parameters within normal ranges.'
+            ? 'Clinically screened. Hemoglobin levels and vital parameters compliant.'
             : 'Awaiting lab screening verification.',
         verifiedBy: d.verified === 'verified' ? adminUser._id : null,
         verifiedAt: d.verified === 'verified' ? new Date() : null,
@@ -227,12 +279,46 @@ const seedData = async () => {
       createdDonors.push({ user, profile });
     }
 
-    console.log(`[Seeder] Created 1 Admin, 2 Requesters, and ${createdDonors.length} Donors.`);
+    // 6. Create Verified Donation Event for Vikram Singh at Manipal Hospital (org1)
+    // with active deferral that affects matching at Apollo Hospital (org2)
+    const vikram = createdDonors.find((d) => d.user.email === 'vikram.singh@example.com');
+    if (vikram) {
+      const donationEvent = await DonationEvent.create({
+        donorId: vikram.user._id,
+        donorProfileId: vikram.profile._id,
+        organizationId: org1._id,
+        eventId: `DON-${Date.now()}-MANIPAL01`,
+        donationDate: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000),
+        donationType: 'whole_blood',
+        status: 'verified',
+        deferralRuleVersion: '1.0.0',
+        deferralUntil: new Date(Date.now() + 41 * 24 * 60 * 60 * 1000),
+        unitsCollected: 1,
+        notes: 'Whole blood donation at Manipal Hospital Old Airport Rd.',
+        recordedBy: requester1._id,
+        verifiedBy: requester1._id,
+        verifiedAt: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000),
+      });
 
-    // 4. Create realistic Emergency Blood Requests
-    // Request 1: Urgent O+ at Manipal Hospital Old Airport Rd
+      await DonorDeferral.create({
+        donorId: vikram.user._id,
+        donorProfileId: vikram.profile._id,
+        sourceDonationEventId: donationEvent._id,
+        organizationId: org1._id,
+        status: 'active',
+        startDate: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000),
+        endDate: new Date(Date.now() + 41 * 24 * 60 * 60 * 1000),
+        reasonCode: 'post_whole_blood',
+        reasonDescription: 'Standard 56-day post whole-blood red cell regeneration deferral',
+        ruleVersion: '1.0.0',
+        authorizedBy: requester1._id,
+      });
+    }
+
+    // 7. Create Emergency Blood Requests associated with Organizations
     const request1 = await BloodRequest.create({
       requester: requester1._id,
+      organizationId: org1._id,
       patientName: 'Arjun Das (Road Accident Trauma)',
       bloodGroup: 'O+',
       unitsRequested: 3,
@@ -246,22 +332,22 @@ const seedData = async () => {
         },
       },
       urgency: 'critical',
-      requiredBy: new Date(Date.now() + 6 * 60 * 60 * 1000), // In 6 hours
-      description: 'Emergency blood needed for emergency surgery following multiple trauma injuries. OT scheduled.',
+      requiredBy: new Date(Date.now() + 6 * 60 * 60 * 1000),
+      description: 'Emergency blood needed for emergency surgery following multiple trauma injuries.',
       status: 'donors_contacted',
-      matchedDonorsCount: 4,
-      contactedDonorsCount: 2,
+      matchedDonorsCount: 3,
+      contactedDonorsCount: 1,
       acceptedDonorsCount: 1,
     });
 
-    // Request 2: Critical A+ at Apollo Hospitals Bannerghatta Rd
     const request2 = await BloodRequest.create({
       requester: requester2._id,
+      organizationId: org2._id,
       patientName: 'Meera Sengupta (Cardiac Surgery)',
       bloodGroup: 'A+',
       unitsRequested: 2,
       hospital: {
-        name: 'Apollo Hospitals Bannerghatta',
+        name: 'Apollo Hospital Bannerghatta',
         address: '154/11 Bannerghatta Main Rd, Bangalore',
         contactPhone: '+91 80 2630 4050',
         location: {
@@ -270,156 +356,27 @@ const seedData = async () => {
         },
       },
       urgency: 'high',
-      requiredBy: new Date(Date.now() + 18 * 60 * 60 * 1000), // In 18 hours
-      description: 'Urgent bypass surgery scheduled. Patient blood group is A positive. Need whole blood or PRBC.',
-      status: 'awaiting_responses',
-      matchedDonorsCount: 3,
-      contactedDonorsCount: 2,
-      acceptedDonorsCount: 1,
-    });
-
-    // Request 3: Open B+ request at Fortis Hospital Cunningham Rd
-    const request3 = await BloodRequest.create({
-      requester: requester1._id,
-      patientName: 'Sunil Rao (Dengue Platelets/PRBC)',
-      bloodGroup: 'B+',
-      unitsRequested: 2,
-      hospital: {
-        name: 'Fortis Hospital',
-        address: '14 Cunningham Rd, Vasanth Nagar, Bangalore',
-        contactPhone: '+91 80 4199 4444',
-        location: {
-          type: 'Point',
-          coordinates: [77.5987, 12.9866],
-        },
-      },
-      urgency: 'high',
-      requiredBy: new Date(Date.now() + 24 * 60 * 60 * 1000),
-      description: 'Platelet count critically low (sub 20k). Urgent transfusion needed.',
+      requiredBy: new Date(Date.now() + 18 * 60 * 60 * 1000),
+      description: 'Urgent bypass surgery scheduled. Patient blood group is A positive.',
       status: 'open',
       matchedDonorsCount: 2,
       contactedDonorsCount: 0,
       acceptedDonorsCount: 0,
     });
 
-    // Request 4: Fulfilled O- request at Victoria Hospital
-    const request4 = await BloodRequest.create({
-      requester: requester2._id,
-      patientName: 'Baby Aarav (Pediatric Emergency)',
-      bloodGroup: 'O-',
-      unitsRequested: 1,
-      hospital: {
-        name: 'Victoria Hospital',
-        address: 'Near City Market, Fort Road, Bangalore',
-        contactPhone: '+91 80 2670 1150',
-        location: {
-          type: 'Point',
-          coordinates: [77.5739, 12.9625],
-        },
-      },
-      urgency: 'critical',
-      requiredBy: new Date(Date.now() - 12 * 60 * 60 * 1000),
-      description: 'Rare O negative pediatric emergency case.',
-      status: 'fulfilled',
-      matchedDonorsCount: 2,
-      contactedDonorsCount: 2,
-      acceptedDonorsCount: 1,
-      closureNotes: 'Successfully donated by Sneha Rao and verified by Blood Bank coordinator.',
-      fulfilledAt: new Date(Date.now() - 10 * 60 * 60 * 1000),
-    });
-
-    // 5. Create Donor Responses
-    // Rahul Verma accepted Request 1
-    const rahul = createdDonors.find((d) => d.user.email === 'rahul.verma@example.com');
-    if (rahul) {
-      await DonorResponse.create({
-        bloodRequest: request1._id,
-        donor: rahul.user._id,
-        donorProfile: rahul.profile._id,
-        responseStatus: 'accepted',
-        donorNotes: 'I am on my way to Manipal Hospital, can arrive in 25 minutes.',
-        respondedAt: new Date(Date.now() - 45 * 60 * 1000),
-      });
-    }
-
-    // Priya Nair accepted Request 2
-    const priya = createdDonors.find((d) => d.user.email === 'priya.nair@example.com');
-    if (priya) {
-      await DonorResponse.create({
-        bloodRequest: request2._id,
-        donor: priya.user._id,
-        donorProfile: priya.profile._id,
-        responseStatus: 'accepted',
-        donorNotes: 'Available tomorrow morning before 10 AM.',
-        respondedAt: new Date(Date.now() - 30 * 60 * 1000),
-      });
-    }
-
-    // Sneha Rao fulfilled Request 4
-    const sneha = createdDonors.find((d) => d.user.email === 'sneha.rao@example.com');
-    if (sneha) {
-      await DonorResponse.create({
-        bloodRequest: request4._id,
-        donor: sneha.user._id,
-        donorProfile: sneha.profile._id,
-        responseStatus: 'accepted',
-        donorNotes: 'Donation completed at Victoria Hospital blood bank.',
-        respondedAt: new Date(Date.now() - 11 * 60 * 60 * 1000),
-      });
-    }
-
-    // 6. Create Notifications
-    await Notification.create({
-      recipient: rahul.user._id,
-      bloodRequest: request1._id,
-      title: 'Urgent Blood Donation Request: O+',
-      message: 'Manipal Hospital urgently requires 3 units of O+ blood. Can you assist?',
-      type: 'contact_invite',
-      channel: 'both',
-      deliveryStatus: 'delivered',
-      isRead: true,
-      readAt: new Date(Date.now() - 40 * 60 * 1000),
-    });
-
-    await Notification.create({
-      recipient: requester1._id,
-      bloodRequest: request1._id,
-      title: 'Donor Accepted Request: O+',
-      message: 'Rahul Verma has accepted your blood request for Manipal Hospital.',
-      type: 'donor_accepted',
-      channel: 'both',
-      deliveryStatus: 'delivered',
-      isRead: false,
-    });
-
-    // 7. Create Audit Logs
-    await AuditLog.create({
-      actor: adminUser._id,
-      action: 'VERIFY_DONOR',
-      recordModel: 'DonorProfile',
-      recordId: rahul.profile._id,
-      details: { verificationStatus: 'verified', notes: 'Screened donor eligibility verified.' },
-      timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000),
-    });
-
-    await AuditLog.create({
-      actor: adminUser._id,
-      action: 'FULFILL_REQUEST',
-      recordModel: 'BloodRequest',
-      recordId: request4._id,
-      details: { unitsFulfillled: 1, donor: 'Sneha Rao', hospital: 'Victoria Hospital' },
-      timestamp: new Date(Date.now() - 10 * 60 * 60 * 1000),
-    });
-
-    console.log('[Seeder] Synthetic seed data inserted successfully!');
+    console.log('[Seeder] Multi-Hospital Seed complete!');
     console.log('====================================================');
-    console.log('DEMO ACCOUNTS FOR LOGIN:');
-    console.log('1. Admin:     admin@bloodnetwork.org     / admin123');
-    console.log('2. Requester: dr.sharma@citycare.org     / requester123');
-    console.log('3. Requester: sarah.requester@metrohealth.org / requester123');
-    console.log('4. Donor (O+): rahul.verma@example.com   / donor123');
-    console.log('5. Donor (A+): priya.nair@example.com    / donor123');
-    console.log('6. Donor (O-): sneha.rao@example.com     / donor123');
+    console.log('HOSPITALS SEEDED:');
+    console.log(`1. Hospital A: Manipal Hospital (ID: ${org1._id})`);
+    console.log(`2. Hospital B: Apollo Hospital (ID: ${org2._id})`);
+    console.log(`3. Blood Bank: Victoria Hospital (ID: ${org3._id})`);
+    console.log('----------------------------------------------------');
+    console.log('ACCOUNTS FOR TESTING:');
+    console.log('Admin (Platform):   admin@bloodnetwork.org     / admin123');
+    console.log('Hospital A Staff:   dr.sharma@citycare.org     / requester123');
+    console.log('Hospital B Staff:   sarah.requester@metrohealth.org / requester123');
+    console.log('Donor (Active O+):  rahul.verma@example.com    / donor123');
+    console.log('Donor (Deferred):   vikram.singh@example.com   / donor123');
     console.log('====================================================');
 
     process.exit(0);
