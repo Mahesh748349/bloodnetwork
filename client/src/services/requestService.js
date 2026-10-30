@@ -45,4 +45,14 @@ export const requestService = {
     const response = await api.get(`/requests/${id}/responses`);
     return response.data;
   },
+
+  sosBroadcast: async (id) => {
+    const response = await api.post(`/requests/${id}/sos-broadcast`);
+    return response.data;
+  },
+
+  escalateRequest: async (id, reason = '') => {
+    const response = await api.post(`/requests/${id}/escalate`, { reason });
+    return response.data;
+  },
 };

@@ -117,6 +117,14 @@ const bloodRequestSchema = new mongoose.Schema(
     cancelledAt: {
       type: Date,
     },
+    escalationLevel: {
+      type: Number,
+      default: 0,
+    },
+    isSosBroadcast: {
+      type: Boolean,
+      default: false,
+    },
   },
   {
     timestamps: true,

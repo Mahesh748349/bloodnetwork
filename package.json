@@ -6,7 +6,9 @@
     "dev:server": "node --watch server/src/server.js",
     "dev:client": "npm --prefix client run dev",
     "seed": "node server/src/utils/seed.js",
-    "test:server": "node server/tests/run-tests.js"
+    "import:dataset": "node server/src/utils/importRealDataset.js",
+    "test:server": "node server/tests/run-tests.js",
+    "test:features": "node server/tests/run-new-features-tests.js"
   },
   "keywords": [
     "blood-donation",

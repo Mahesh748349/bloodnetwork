@@ -70,8 +70,22 @@ export const Navbar = () => {
                 Overview
               </Link>
 
+              <Link
+                to="/compatibility"
+                className="px-3 py-2 rounded-lg text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition flex items-center gap-1"
+              >
+                Compatibility
+              </Link>
+
               {user && (
                 <>
+                  <Link
+                    to="/camps"
+                    className="px-3 py-2 rounded-lg text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition flex items-center gap-1"
+                  >
+                    Camps
+                  </Link>
+
                   {isDonor && (
                     <Link
                       to="/donor"
@@ -84,6 +98,12 @@ export const Navbar = () => {
 
                   {(isRequester || isAdmin) && (
                     <>
+                      <Link
+                        to="/inventory"
+                        className="px-3 py-2 rounded-lg text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition flex items-center gap-1.5"
+                      >
+                        Inventory
+                      </Link>
                       <Link
                         to="/requester"
                         className="px-3 py-2 rounded-lg text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition flex items-center gap-1.5"

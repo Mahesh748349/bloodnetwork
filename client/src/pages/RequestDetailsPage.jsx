@@ -20,6 +20,8 @@ import {
   Activity,
   ShieldCheck,
   RefreshCw,
+  Radio,
+  Zap,
 } from 'lucide-react';
 
 export const RequestDetailsPage = () => {
@@ -44,8 +46,43 @@ export const RequestDetailsPage = () => {
   const [selectedDonorsToContact, setSelectedDonorsToContact] = useState([]);
   const [contactCustomMsg, setContactCustomMsg] = useState('');
   const [contactingDonors, setContactingDonors] = useState(false);
+  const [sosLoading, setSosLoading] = useState(false);
+  const [escalateLoading, setEscalateLoading] = useState(false);
 
   const [successBanner, setSuccessBanner] = useState('');
+
+  const handleSosBroadcast = async () => {
+    if (!window.confirm('Trigger immediate SOS broadcast across 100km radius to all compatible donors?')) {
+      return;
+    }
+    try {
+      setSosLoading(true);
+      const res = await requestService.sosBroadcast(id);
+      if (res.success) {
+        setSuccessBanner(res.message);
+        fetchRequestDetails();
+      }
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to trigger SOS broadcast');
+    } finally {
+      setSosLoading(false);
+    }
+  };
+
+  const handleEscalate = async () => {
+    try {
+      setEscalateLoading(true);
+      const res = await requestService.escalateRequest(id, 'Responses delayed - expanding radius');
+      if (res.success) {
+        setSuccessBanner(res.message);
+        fetchRequestDetails();
+      }
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to escalate request');
+    } finally {
+      setEscalateLoading(false);
+    }
+  };
 
   const fetchRequestDetails = async () => {
     try {
@@ -210,6 +247,26 @@ export const RequestDetailsPage = () => {
           {/* Lifecycle State Machine Actions for Owner/Admin */}
           {isOwnerOrAdmin && !['fulfilled', 'cancelled'].includes(request.status) && (
             <div className="flex flex-wrap items-center gap-2">
+              {/* SOS Emergency Broadcast */}
+              <button
+                onClick={handleSosBroadcast}
+                disabled={sosLoading}
+                className="px-3.5 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md shadow-red-600/30 animate-pulse"
+              >
+                <Radio className="w-3.5 h-3.5" />
+                {sosLoading ? 'Broadcasting...' : 'Emergency SOS Broadcast'}
+              </button>
+
+              {/* Urgency Escalation */}
+              <button
+                onClick={handleEscalate}
+                disabled={escalateLoading}
+                className="px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs"
+              >
+                <Zap className="w-3.5 h-3.5" />
+                {escalateLoading ? 'Escalating...' : 'Escalate Radius (+25km)'}
+              </button>
+
               <button
                 onClick={() => {
                   setSelectedStatus('coordination_in_progress');

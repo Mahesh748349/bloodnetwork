@@ -5,6 +5,7 @@ const Organization = require('../models/Organization');
 const { createDonationDeferral, evaluateDonorEligibility } = require('../services/deferralService');
 const { assertOrganizationAccess } = require('../services/organizationService');
 const { logAction } = require('../services/auditService');
+const { evaluateAndAwardBadges } = require('../services/badgeService');
 
 /**
  * @route   POST /api/donations
@@ -103,6 +104,13 @@ const recordDonation = async (req, res, next) => {
         customEndDate: customDeferralUntil,
         req,
       });
+
+      // Award gamification badges for donor milestones
+      try {
+        await evaluateAndAwardBadges(donorId, req);
+      } catch (badgeErr) {
+        console.warn('[Badge Evaluation Notice]', badgeErr.message);
+      }
     }
 
     await logAction({
@@ -188,6 +196,13 @@ const verifyDonation = async (req, res, next) => {
       customEndDate: customDeferralUntil,
       req,
     });
+
+    // Award gamification badges for donor milestones
+    try {
+      await evaluateAndAwardBadges(donationEvent.donorId, req);
+    } catch (badgeErr) {
+      console.warn('[Badge Evaluation Notice]', badgeErr.message);
+    }
 
     await logAction({
       actorId: req.user._id,

@@ -1,0 +1,255 @@
+[
+  {
+    "name": "Victoria Hospital Blood Bank",
+    "organizationType": "blood_bank",
+    "registrationIdentifier": "BB-KA-BLR-001",
+    "address": {
+      "city": "Bangalore",
+      "state": "Karnataka",
+      "postalCode": "560002",
+      "formattedAddress": "Fort Road, Near City Market, Kalasipalya, Bangalore, Karnataka"
+    },
+    "location": {
+      "type": "Point",
+      "coordinates": [77.5739, 12.9625]
+    },
+    "contactInformation": {
+      "phone": "+91 80 2670 1150",
+      "email": "bloodbank@victoriahospital.gov.in"
+    },
+    "componentFacilities": ["whole_blood", "red_blood_cells", "platelets", "plasma"],
+    "status": "active"
+  },
+  {
+    "name": "Manipal Hospital Blood Center",
+    "organizationType": "hospital",
+    "registrationIdentifier": "BB-KA-BLR-002",
+    "address": {
+      "city": "Bangalore",
+      "state": "Karnataka",
+      "postalCode": "560017",
+      "formattedAddress": "98 HAL Old Airport Rd, Kodihalli, Bangalore, Karnataka"
+    },
+    "location": {
+      "type": "Point",
+      "coordinates": [77.6514, 12.9592]
+    },
+    "contactInformation": {
+      "phone": "+91 80 2502 4444",
+      "email": "bloodcenter@manipalhospitals.com"
+    },
+    "componentFacilities": ["whole_blood", "red_blood_cells", "platelets", "plasma", "cryoprecipitate"],
+    "status": "active"
+  },
+  {
+    "name": "Apollo Hospital Blood Bank Bannerghatta",
+    "organizationType": "hospital",
+    "registrationIdentifier": "BB-KA-BLR-003",
+    "address": {
+      "city": "Bangalore",
+      "state": "Karnataka",
+      "postalCode": "560076",
+      "formattedAddress": "154/11 Bannerghatta Main Rd, Opposite IIMB, Bangalore, Karnataka"
+    },
+    "location": {
+      "type": "Point",
+      "coordinates": [77.5993, 12.8938]
+    },
+    "contactInformation": {
+      "phone": "+91 80 2630 4050",
+      "email": "transfusion@apollohospitals.com"
+    },
+    "componentFacilities": ["whole_blood", "red_blood_cells", "platelets", "plasma"],
+    "status": "active"
+  },
+  {
+    "name": "NIMHANS Neuro-Center Blood Bank",
+    "organizationType": "hospital",
+    "registrationIdentifier": "BB-KA-BLR-004",
+    "address": {
+      "city": "Bangalore",
+      "state": "Karnataka",
+      "postalCode": "560029",
+      "formattedAddress": "Hosur Road, Lakkasandra, Wilson Garden, Bangalore, Karnataka"
+    },
+    "location": {
+      "type": "Point",
+      "coordinates": [77.5937, 12.9392]
+    },
+    "contactInformation": {
+      "phone": "+91 80 2699 5000",
+      "email": "bloodbank@nimhans.ac.in"
+    },
+    "componentFacilities": ["whole_blood", "red_blood_cells", "platelets", "plasma"],
+    "status": "active"
+  },
+  {
+    "name": "St. John's Medical College Hospital Blood Bank",
+    "organizationType": "hospital",
+    "registrationIdentifier": "BB-KA-BLR-005",
+    "address": {
+      "city": "Bangalore",
+      "state": "Karnataka",
+      "postalCode": "560034",
+      "formattedAddress": "Sarjapur Main Rd, John Nagar, Koramangala, Bangalore, Karnataka"
+    },
+    "location": {
+      "type": "Point",
+      "coordinates": [77.6205, 12.9279]
+    },
+    "contactInformation": {
+      "phone": "+91 80 2206 5000",
+      "email": "bloodbank@stjohns.in"
+    },
+    "componentFacilities": ["whole_blood", "red_blood_cells", "platelets", "plasma", "cryoprecipitate"],
+    "status": "active"
+  },
+  {
+    "name": "Kidwai Memorial Institute of Oncology Blood Bank",
+    "organizationType": "hospital",
+    "registrationIdentifier": "BB-KA-BLR-006",
+    "address": {
+      "city": "Bangalore",
+      "state": "Karnataka",
+      "postalCode": "560029",
+      "formattedAddress": "Dr. M H Marigowda Road, Near Dairy Circle, Bangalore, Karnataka"
+    },
+    "location": {
+      "type": "Point",
+      "coordinates": [77.5958, 12.9363]
+    },
+    "contactInformation": {
+      "phone": "+91 80 2609 4000",
+      "email": "kidwaibloodbank@karnataka.gov.in"
+    },
+    "componentFacilities": ["whole_blood", "red_blood_cells", "platelets", "plasma"],
+    "status": "active"
+  },
+  {
+    "name": "Narayana Health City Blood Bank",
+    "organizationType": "hospital",
+    "registrationIdentifier": "BB-KA-BLR-007",
+    "address": {
+      "city": "Bangalore",
+      "state": "Karnataka",
+      "postalCode": "560099",
+      "formattedAddress": "258/A Bommasandra Industrial Area, Anekal Taluk, Bangalore, Karnataka"
+    },
+    "location": {
+      "type": "Point",
+      "coordinates": [77.6917, 12.8122]
+    },
+    "contactInformation": {
+      "phone": "+91 80 7122 2222",
+      "email": "bloodbank.nhcity@narayanahealth.org"
+    },
+    "componentFacilities": ["whole_blood", "red_blood_cells", "platelets", "plasma", "cryoprecipitate"],
+    "status": "active"
+  },
+  {
+    "name": "Bowring & Lady Curzon Hospital Blood Bank",
+    "organizationType": "hospital",
+    "registrationIdentifier": "BB-KA-BLR-008",
+    "address": {
+      "city": "Bangalore",
+      "state": "Karnataka",
+      "postalCode": "560001",
+      "formattedAddress": "Lady Curzon Rd, Shivaji Nagar, Bangalore, Karnataka"
+    },
+    "location": {
+      "type": "Point",
+      "coordinates": [77.6045, 12.9822]
+    },
+    "contactInformation": {
+      "phone": "+91 80 2559 1362",
+      "email": "bowringhospital@karnataka.gov.in"
+    },
+    "componentFacilities": ["whole_blood", "red_blood_cells", "plasma"],
+    "status": "active"
+  },
+  {
+    "name": "Fortis Hospital Blood Bank Cunningham Road",
+    "organizationType": "hospital",
+    "registrationIdentifier": "BB-KA-BLR-009",
+    "address": {
+      "city": "Bangalore",
+      "state": "Karnataka",
+      "postalCode": "560052",
+      "formattedAddress": "14 Cunningham Rd, Vasanth Nagar, Bangalore, Karnataka"
+    },
+    "location": {
+      "type": "Point",
+      "coordinates": [77.5987, 12.9866]
+    },
+    "contactInformation": {
+      "phone": "+91 80 4199 4444",
+      "email": "care.cunningham@fortishealthcare.com"
+    },
+    "componentFacilities": ["whole_blood", "red_blood_cells", "platelets", "plasma"],
+    "status": "active"
+  },
+  {
+    "name": "Sri Jayadeva Institute of Cardiovascular Sciences Blood Bank",
+    "organizationType": "hospital",
+    "registrationIdentifier": "BB-KA-BLR-010",
+    "address": {
+      "city": "Bangalore",
+      "state": "Karnataka",
+      "postalCode": "560069",
+      "formattedAddress": "Bannerghatta Main Rd, 9th Block, Jayanagar, Bangalore, Karnataka"
+    },
+    "location": {
+      "type": "Point",
+      "coordinates": [77.5971, 12.9189]
+    },
+    "contactInformation": {
+      "phone": "+91 80 2297 7400",
+      "email": "jayadevabloodbank@gov.in"
+    },
+    "componentFacilities": ["whole_blood", "red_blood_cells", "platelets", "plasma", "cryoprecipitate"],
+    "status": "active"
+  },
+  {
+    "name": "Red Cross Society Blood Bank Bangalore",
+    "organizationType": "blood_bank",
+    "registrationIdentifier": "BB-KA-BLR-011",
+    "address": {
+      "city": "Bangalore",
+      "state": "Karnataka",
+      "postalCode": "560001",
+      "formattedAddress": "26 Red Cross Bhawan, Race Course Road, Bangalore, Karnataka"
+    },
+    "location": {
+      "type": "Point",
+      "coordinates": [77.5855, 12.9818]
+    },
+    "contactInformation": {
+      "phone": "+91 80 2226 8435",
+      "email": "ircskarnataka@gmail.com"
+    },
+    "componentFacilities": ["whole_blood", "red_blood_cells", "platelets", "plasma"],
+    "status": "active"
+  },
+  {
+    "name": "Rashtrotthana Blood Center",
+    "organizationType": "blood_bank",
+    "registrationIdentifier": "BB-KA-BLR-012",
+    "address": {
+      "city": "Bangalore",
+      "state": "Karnataka",
+      "postalCode": "560019",
+      "formattedAddress": "Kempegowda Nagar, Gavipuram Extension, Hanumanthnagar, Bangalore, Karnataka"
+    },
+    "location": {
+      "type": "Point",
+      "coordinates": [77.5612, 12.9468]
+    },
+    "contactInformation": {
+      "phone": "+91 80 2661 2730",
+      "email": "bloodcenter@rashtrotthana.org"
+    },
+    "componentFacilities": ["whole_blood", "red_blood_cells", "platelets", "plasma"],
+    "status": "active"
+  }
+]
+

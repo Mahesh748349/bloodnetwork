@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { requestService } from '../services/requestService';
+import { organizationService } from '../services/organizationService';
+import { useAuth } from '../context/AuthContext';
 import { LeafletMap } from '../components/LeafletMap';
 import {
   Hospital,
@@ -12,10 +14,13 @@ import {
   AlertCircle,
   PlusCircle,
   Droplet,
+  Building2,
+  Lock,
 } from 'lucide-react';
 
 export const CreateRequestPage = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   const [patientName, setPatientName] = useState('Emergency Trauma Patient');
   const [bloodGroup, setBloodGroup] = useState('O+');
@@ -32,45 +37,35 @@ export const CreateRequestPage = () => {
     'Urgent emergency surgery scheduled. Whole blood or packed red cells required immediately.'
   );
 
+  const [affiliatedOrg, setAffiliatedOrg] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   const bloodGroups = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 
-  // Quick preset hospitals in Bangalore
-  const hospitalPresets = [
-    {
-      name: 'Manipal Hospital',
-      address: '98 HAL Old Airport Rd, Bangalore',
-      phone: '+91 80 2502 4444',
-      coords: [77.6514, 12.9592],
-    },
-    {
-      name: 'Apollo Hospital Bannerghatta',
-      address: '154/11 Bannerghatta Main Rd, Bangalore',
-      phone: '+91 80 2630 4050',
-      coords: [77.5993, 12.8938],
-    },
-    {
-      name: 'Fortis Hospital Cunningham Rd',
-      address: '14 Cunningham Rd, Bangalore',
-      phone: '+91 80 4199 4444',
-      coords: [77.5987, 12.9866],
-    },
-    {
-      name: 'Victoria Hospital City Market',
-      address: 'Near City Market, Fort Road, Bangalore',
-      phone: '+91 80 2670 1150',
-      coords: [77.5739, 12.9625],
-    },
-  ];
-
-  const handleSelectPreset = (preset) => {
-    setHospitalName(preset.name);
-    setHospitalAddress(preset.address);
-    setHospitalPhone(preset.phone);
-    setCoordinates(preset.coords);
-  };
+  useEffect(() => {
+    const fetchOrg = async () => {
+      try {
+        const res = await organizationService.getMyOrganization();
+        if (res.success && res.organization) {
+          const org = res.organization;
+          setAffiliatedOrg(org);
+          setHospitalName(org.name);
+          setHospitalAddress(
+            org.address?.formattedAddress ||
+              `${org.name}, ${org.address?.city || 'Bangalore'}, ${org.address?.state || 'Karnataka'}`
+          );
+          setHospitalPhone(org.contactInformation?.phone || '+91 80 2502 4444');
+          if (org.location?.coordinates && org.location.coordinates.length === 2) {
+            setCoordinates(org.location.coordinates);
+          }
+        }
+      } catch (err) {
+        // Fallback for non-affiliated
+      }
+    };
+    fetchOrg();
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -95,6 +90,7 @@ export const CreateRequestPage = () => {
         urgency,
         requiredBy: new Date(requiredBy).toISOString(),
         description,
+        organizationId: affiliatedOrg?._id || user?.organizationId || undefined,
       };
 
       const res = await requestService.createRequest(payload);
@@ -120,6 +116,23 @@ export const CreateRequestPage = () => {
         </p>
       </div>
 
+      {affiliatedOrg && (
+        <div className="p-4 rounded-2xl bg-slate-900 text-white flex items-center justify-between shadow-sm">
+          <div className="flex items-center gap-3">
+            <Building2 className="w-5 h-5 text-rose-400 shrink-0" />
+            <div>
+              <div className="text-[11px] uppercase font-bold text-slate-400">
+                Official Requesting Facility
+              </div>
+              <div className="text-sm font-bold text-white">{affiliatedOrg.name}</div>
+            </div>
+          </div>
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-white/10 text-slate-200">
+            <Lock className="w-3.5 h-3.5 text-rose-400" /> Organization Verified
+          </span>
+        </div>
+      )}
+
       {error && (
         <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-sm flex items-start gap-2.5">
           <AlertCircle className="w-5 h-5 shrink-0 mt-0.5 text-rose-600" />
@@ -141,8 +154,8 @@ export const CreateRequestPage = () => {
                 onClick={() => setBloodGroup(bg)}
                 className={`py-2 rounded-xl text-xs font-mono font-bold border transition ${
                   bloodGroup === bg
-                    ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
-                    : 'bg-slate-50 text-slate-800 border-slate-200 hover:border-slate-300'
+                    ? 'bg-rose-600 text-white border-rose-600 shadow-sm'
+                    : 'bg-slate-50 text-slate-800 border-slate-200 hover:bg-slate-100'
                 }`}
               >
                 {bg}
@@ -151,76 +164,64 @@ export const CreateRequestPage = () => {
           </div>
         </div>
 
+        {/* Units & Urgency */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div>
             <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-              Units Requested (Units / PRBC)
+              Units Needed
             </label>
             <input
               type="number"
               min="1"
-              max="50"
+              max="20"
               required
               value={unitsRequested}
               onChange={(e) => setUnitsRequested(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-bold text-slate-900"
+              className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 font-bold"
             />
           </div>
 
           <div>
             <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-              Urgency Level
+              Urgency Tier
             </label>
             <select
               value={urgency}
               onChange={(e) => setUrgency(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-semibold text-slate-900"
+              className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 capitalize font-medium"
             >
-              <option value="critical">Critical (Immediate Surgery / Trauma)</option>
-              <option value="high">High (Needed within 12-24 hours)</option>
-              <option value="medium">Medium (Next 48 hours)</option>
-              <option value="low">Low (Elective Planned)</option>
+              <option value="low">Low (Next 48 hrs)</option>
+              <option value="medium">Medium (Next 24 hrs)</option>
+              <option value="high">High (Next 12 hrs)</option>
+              <option value="critical">Critical / Surgery (Immediate)</option>
             </select>
           </div>
 
           <div>
             <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-              Required By Date & Time
+              Required By
             </label>
             <input
               type="datetime-local"
               required
               value={requiredBy}
               onChange={(e) => setRequiredBy(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs font-medium text-slate-900"
+              className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 font-medium text-slate-900"
             />
           </div>
         </div>
 
-        {/* Hospital Presets & Location */}
+        {/* Hospital Details (Locked to Organization) */}
         <div className="space-y-4 pt-4 border-t border-slate-100">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="flex items-center justify-between">
             <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-              Hospital or Blood Collection Point
+              Hospital & Collection Location
             </label>
-            <div className="text-2xs text-slate-600 font-medium">Quick Presets:</div>
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            {hospitalPresets.map((preset) => (
-              <button
-                type="button"
-                key={preset.name}
-                onClick={() => handleSelectPreset(preset)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition ${
-                  hospitalName === preset.name
-                    ? 'bg-rose-50 text-rose-700 border-rose-300'
-                    : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-                }`}
-              >
-                {preset.name}
-              </button>
-            ))}
+            {affiliatedOrg && (
+              <span className="text-2xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                Bound to {affiliatedOrg.name}
+              </span>
+            )}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -229,10 +230,13 @@ export const CreateRequestPage = () => {
               <input
                 type="text"
                 required
+                disabled={!!affiliatedOrg}
                 value={hospitalName}
                 onChange={(e) => setHospitalName(e.target.value)}
                 placeholder="e.g. Apollo Hospital"
-                className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300"
+                className={`w-full px-3 py-2 text-xs rounded-xl border ${
+                  affiliatedOrg ? 'bg-slate-100 text-slate-700 border-slate-200 cursor-not-allowed' : 'border-slate-300'
+                }`}
               />
             </div>
             <div>
@@ -241,10 +245,13 @@ export const CreateRequestPage = () => {
               </label>
               <input
                 type="text"
+                disabled={!!affiliatedOrg}
                 value={hospitalPhone}
                 onChange={(e) => setHospitalPhone(e.target.value)}
                 placeholder="+91 80 1234 5678"
-                className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300"
+                className={`w-full px-3 py-2 text-xs rounded-xl border ${
+                  affiliatedOrg ? 'bg-slate-100 text-slate-700 border-slate-200 cursor-not-allowed' : 'border-slate-300'
+                }`}
               />
             </div>
           </div>
@@ -256,17 +263,20 @@ export const CreateRequestPage = () => {
             <input
               type="text"
               required
+              disabled={!!affiliatedOrg}
               value={hospitalAddress}
               onChange={(e) => setHospitalAddress(e.target.value)}
               placeholder="e.g. Bannerghatta Main Road, Bangalore"
-              className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300"
+              className={`w-full px-3 py-2 text-xs rounded-xl border ${
+                affiliatedOrg ? 'bg-slate-100 text-slate-700 border-slate-200 cursor-not-allowed' : 'border-slate-300'
+              }`}
             />
           </div>
 
           {/* Interactive Map of Collection Hospital */}
           <div className="pt-2">
             <div className="text-2xs text-slate-600 font-semibold mb-1">
-              Hospital Location on OpenStreetMap:
+              Hospital Geocoded Location on OpenStreetMap:
             </div>
             <LeafletMap
               center={[coordinates[1], coordinates[0]]}

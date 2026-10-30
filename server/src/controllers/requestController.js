@@ -2,6 +2,8 @@ const BloodRequest = require('../models/BloodRequest');
 const DonorResponse = require('../models/DonorResponse');
 const User = require('../models/User');
 const DonorProfile = require('../models/DonorProfile');
+const Organization = require('../models/Organization');
+const EscalationLog = require('../models/EscalationLog');
 const { findMatchingDonors } = require('../services/matchingService');
 const { sendNotification } = require('../services/notificationService');
 const { logAction } = require('../services/auditService');
@@ -40,31 +42,55 @@ const createRequest = async (req, res, next) => {
       autoNotifyRadiusKm = 25,
     } = req.body;
 
-    if (!bloodGroup || !unitsRequested || !hospitalName || !hospitalAddress || !requiredBy) {
+    if (!bloodGroup || !unitsRequested || !requiredBy) {
       return res.status(400).json({
         success: false,
-        message: 'Required fields: bloodGroup, unitsRequested, hospitalName, hospitalAddress, requiredBy',
+        message: 'Required fields: bloodGroup, unitsRequested, requiredBy',
       });
     }
 
-    const defaultCoords =
+    // Determine target organization and strictly bind request to the user's hospital
+    let finalOrgId = req.user.organizationId;
+    if ((req.user.role === 'admin' || req.user.role === 'platform_admin') && req.body.organizationId) {
+      finalOrgId = req.body.organizationId;
+    }
+
+    let finalHospitalName = hospitalName || 'Emergency Center';
+    let finalHospitalAddress = hospitalAddress || 'Bangalore, Karnataka';
+    let finalHospitalPhone = hospitalPhone || '';
+    let finalCoords =
       Array.isArray(coordinates) && coordinates.length === 2
         ? [Number(coordinates[0]), Number(coordinates[1])]
-        : [77.5946, 12.9716]; // Default Bangalore coords if not provided
+        : [77.5946, 12.9716];
+
+    if (finalOrgId) {
+      const org = await Organization.findById(finalOrgId);
+      if (org) {
+        // Enforce authentic hospital identity from the organization record
+        finalHospitalName = org.name;
+        finalHospitalAddress =
+          org.address?.formattedAddress ||
+          `${org.name}, ${org.address?.city || 'Bangalore'}, ${org.address?.state || 'Karnataka'}`;
+        finalHospitalPhone = org.contactInformation?.phone || finalHospitalPhone;
+        if (org.location?.coordinates && org.location.coordinates.length === 2) {
+          finalCoords = org.location.coordinates;
+        }
+      }
+    }
 
     const bloodRequest = await BloodRequest.create({
       requester: req.user.id,
-      organizationId: req.body.organizationId || req.user.organizationId || null,
+      organizationId: finalOrgId || null,
       patientName: patientName || 'Emergency Patient',
       bloodGroup,
       unitsRequested: Number(unitsRequested),
       hospital: {
-        name: hospitalName,
-        address: hospitalAddress,
-        contactPhone: hospitalPhone || '',
+        name: finalHospitalName,
+        address: finalHospitalAddress,
+        contactPhone: finalHospitalPhone,
         location: {
           type: 'Point',
-          coordinates: defaultCoords,
+          coordinates: finalCoords,
         },
       },
       urgency,
@@ -77,7 +103,7 @@ const createRequest = async (req, res, next) => {
     try {
       const initialMatches = await findMatchingDonors({
         bloodGroup,
-        coordinates: defaultCoords,
+        coordinates: finalCoords,
         radiusKm: Number(autoNotifyRadiusKm) || 30,
         bloodRequestId: bloodRequest._id,
       });
@@ -465,6 +491,224 @@ const getMatchedDonorsForRequest = async (req, res, next) => {
   }
 };
 
+/**
+ * @route   POST /api/requests/:id/sos-broadcast
+ * @desc    Trigger network-wide high-priority SOS emergency alert to all matching & compatible donors
+ * @access  Private (Hospital Staff, Admin)
+ */
+const sosEmergencyBroadcast = async (req, res, next) => {
+  try {
+    const bloodRequest = await BloodRequest.findById(req.params.id);
+    if (!bloodRequest) {
+      return res.status(404).json({
+        success: false,
+        message: 'Blood request not found',
+      });
+    }
+
+    if (['fulfilled', 'cancelled'].includes(bloodRequest.status)) {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot trigger SOS broadcast on a ${bloodRequest.status} request.`,
+      });
+    }
+
+    const coordinates = bloodRequest.hospital.location.coordinates;
+    const sosRadiusKm = 100; // Expanded SOS emergency radius
+
+    // Discover all exact and compatible eligible donors within 100km
+    const matchingDonors = await findMatchingDonors({
+      bloodGroup: bloodRequest.bloodGroup,
+      coordinates,
+      radiusKm: sosRadiusKm,
+      bloodRequestId: bloodRequest._id,
+      includeCompatible: true,
+    });
+
+    let reachedCount = 0;
+    const reachedDonors = [];
+
+    for (const match of matchingDonors) {
+      const donorUser = await User.findById(match.user._id);
+      if (!donorUser) continue;
+
+      // Ensure donor is eligible
+      const eligibility = await evaluateDonorEligibility(match.user._id);
+      if (!eligibility.eligible) continue;
+
+      // Upsert donor response
+      const existingResp = await DonorResponse.findOne({
+        bloodRequest: bloodRequest._id,
+        donor: donorUser._id,
+      });
+
+      if (!existingResp) {
+        await DonorResponse.create({
+          bloodRequest: bloodRequest._id,
+          donor: donorUser._id,
+          donorProfile: match._id,
+          responseStatus: 'contacted',
+        });
+        reachedCount++;
+      }
+
+      reachedDonors.push({
+        name: donorUser.name,
+        bloodGroup: match.bloodGroup,
+        distanceKm: match.distanceKm,
+        city: match.city,
+      });
+
+      // Dispatch emergency alert
+      await sendNotification({
+        recipientId: donorUser._id,
+        recipientEmail: donorUser.email,
+        recipientName: donorUser.name,
+        bloodRequestId: bloodRequest._id,
+        title: `🚨 CRITICAL SOS BROADCAST: ${bloodRequest.bloodGroup} Blood Needed Urgently!`,
+        message: `EMERGENCY ALERT: Hospital "${bloodRequest.hospital.name}" urgently requires ${bloodRequest.unitsRequested} units of ${bloodRequest.bloodGroup} blood for patient "${bloodRequest.patientName}". Your compatible blood can save a life right now!`,
+        type: 'sos_broadcast',
+        channel: 'both',
+      });
+    }
+
+    bloodRequest.isSosBroadcast = true;
+    bloodRequest.urgency = 'critical';
+    if (bloodRequest.status === 'open') {
+      bloodRequest.status = 'donors_contacted';
+    }
+    bloodRequest.contactedDonorsCount += reachedCount;
+    await bloodRequest.save();
+
+    await logAction({
+      actorId: req.user.id,
+      action: 'SOS_EMERGENCY_BROADCAST',
+      recordModel: 'BloodRequest',
+      recordId: bloodRequest._id,
+      details: {
+        radiusKm: sosRadiusKm,
+        donorsReached: reachedDonors.length,
+        bloodGroup: bloodRequest.bloodGroup,
+      },
+      req,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `SOS Emergency Alert successfully broadcasted to ${reachedDonors.length} compatible donors across 100km radius!`,
+      broadcastCount: reachedDonors.length,
+      reachedDonors,
+      bloodRequest,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @route   POST /api/requests/:id/escalate
+ * @desc    Auto or manual urgency escalation when responses are delayed
+ * @access  Private (Hospital Staff, Admin)
+ */
+const escalateRequest = async (req, res, next) => {
+  try {
+    const bloodRequest = await BloodRequest.findById(req.params.id);
+    if (!bloodRequest) {
+      return res.status(404).json({ success: false, message: 'Blood request not found' });
+    }
+
+    if (['fulfilled', 'cancelled'].includes(bloodRequest.status)) {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot escalate a ${bloodRequest.status} request.`,
+      });
+    }
+
+    const currentLevel = bloodRequest.escalationLevel || 0;
+    const newLevel = currentLevel + 1;
+    const expandedRadius = Math.min(150, 40 + newLevel * 25);
+    const includeCompatible = newLevel >= 2;
+
+    const coordinates = bloodRequest.hospital.location.coordinates;
+    const matches = await findMatchingDonors({
+      bloodGroup: bloodRequest.bloodGroup,
+      coordinates,
+      radiusKm: expandedRadius,
+      bloodRequestId: bloodRequest._id,
+      includeCompatible,
+    });
+
+    let newContacts = 0;
+    for (const match of matches) {
+      const existing = await DonorResponse.findOne({
+        bloodRequest: bloodRequest._id,
+        donor: match.user._id,
+      });
+
+      if (!existing) {
+        await DonorResponse.create({
+          bloodRequest: bloodRequest._id,
+          donor: match.user._id,
+          donorProfile: match._id,
+          responseStatus: 'contacted',
+        });
+        newContacts++;
+
+        const donorUser = await User.findById(match.user._id);
+        if (donorUser) {
+          await sendNotification({
+            recipientId: donorUser._id,
+            recipientEmail: donorUser.email,
+            recipientName: donorUser.name,
+            bloodRequestId: bloodRequest._id,
+            title: `[ESCALATED LEVEL ${newLevel}] Urgent Blood Request: ${bloodRequest.bloodGroup}`,
+            message: `Priority Escalation: ${bloodRequest.hospital.name} still urgently needs ${bloodRequest.unitsRequested} units of ${bloodRequest.bloodGroup}. Search radius expanded to ${expandedRadius}km.`,
+            type: 'escalation_alert',
+            channel: 'both',
+          });
+        }
+      }
+    }
+
+    bloodRequest.escalationLevel = newLevel;
+    bloodRequest.urgency = 'critical';
+    bloodRequest.contactedDonorsCount += newContacts;
+    await bloodRequest.save();
+
+    const escalationLog = await EscalationLog.create({
+      bloodRequestId: bloodRequest._id,
+      escalationLevel: newLevel,
+      triggerReason: req.body.reason || `Level ${newLevel} urgency escalation triggered`,
+      radiusExpandedTo: expandedRadius,
+      compatibleGroupsIncluded: includeCompatible,
+      neighboringHospitalsNotified: true,
+      donorsReached: newContacts,
+      performedBy: req.user.id,
+    });
+
+    await logAction({
+      actorId: req.user.id,
+      action: 'ESCALATE_BLOOD_REQUEST',
+      recordModel: 'BloodRequest',
+      recordId: bloodRequest._id,
+      details: { newLevel, expandedRadius, newContacts },
+      req,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `Request escalated to Level ${newLevel}. Radius expanded to ${expandedRadius}km with ${newContacts} additional donors alerted.`,
+      escalationLevel: newLevel,
+      radiusKm: expandedRadius,
+      newContacts,
+      bloodRequest,
+      escalationLog,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   createRequest,
   getRequests,
@@ -473,4 +717,6 @@ module.exports = {
   cancelRequest,
   contactMatchedDonors,
   getMatchedDonorsForRequest,
+  sosEmergencyBroadcast,
+  escalateRequest,
 };

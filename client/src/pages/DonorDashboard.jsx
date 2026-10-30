@@ -5,6 +5,9 @@ import { requestService } from '../services/requestService';
 import { BloodGroupBadge } from '../components/BloodGroupBadge';
 import { StatusBadge, UrgencyBadge } from '../components/StatusBadge';
 import { Modal } from '../components/Modal';
+import { DonorBadgesDisplay } from '../components/DonorBadgesDisplay';
+import { HealthQuestionnaireForm } from '../components/HealthQuestionnaireForm';
+import { badgeService } from '../services/badgeService';
 import {
   Activity,
   Heart,
@@ -20,6 +23,8 @@ import {
   Building2,
   Lock,
   FileCheck,
+  FileHeart,
+  Sparkles,
 } from 'lucide-react';
 
 export const DonorDashboard = () => {
@@ -29,6 +34,8 @@ export const DonorDashboard = () => {
   const [donationHistory, setDonationHistory] = useState([]);
   const [verifiedDonations, setVerifiedDonations] = useState([]);
   const [deferralInfo, setDeferralInfo] = useState(null);
+  const [badges, setBadges] = useState([]);
+  const [healthModalOpen, setHealthModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [filterAllGroups, setFilterAllGroups] = useState(false);
   const [toggleLoading, setToggleLoading] = useState(false);
@@ -44,17 +51,19 @@ export const DonorDashboard = () => {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [reqRes, histRes, defRes, donRes] = await Promise.all([
+      const [reqRes, histRes, defRes, donRes, badgeRes] = await Promise.all([
         donorService.getNearbyRequests(filterAllGroups),
         donorService.getDonationHistory(),
         donorService.getMyDeferralStatus().catch(() => ({ success: false })),
         donorService.getMyDonations().catch(() => ({ success: false })),
+        badgeService.getMyBadges().catch(() => ({ success: false })),
       ]);
 
       if (reqRes.success) setNearbyRequests(reqRes.requests || []);
       if (histRes.success) setDonationHistory(histRes.history || []);
       if (defRes.success) setDeferralInfo(defRes);
       if (donRes.success) setVerifiedDonations(donRes.donations || []);
+      if (badgeRes.success) setBadges(badgeRes.badges || []);
     } catch (err) {
       console.error('Failed to load donor dashboard data', err);
     } finally {
@@ -294,6 +303,15 @@ export const DonorDashboard = () => {
                 {donorProfile?.totalDonationsCompleted || verifiedDonations.length || 0}
               </div>
             </div>
+
+            {/* Health Pre-Screening Trigger Button */}
+            <button
+              onClick={() => setHealthModalOpen(true)}
+              className="px-4 py-3 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-2xl text-xs font-bold transition flex items-center gap-2 shrink-0"
+            >
+              <FileHeart className="w-4 h-4 text-rose-600" />
+              <span>Health Pre-Check</span>
+            </button>
           </div>
         </div>
 
@@ -304,6 +322,20 @@ export const DonorDashboard = () => {
             Centralized platform deferral is an administrative safeguard enforcing cross-network mandatory rest periods. Individual clinical donor screening and hemoglobin checks remain mandatory at each hospital collection site.
           </span>
         </div>
+      </div>
+
+      {/* Gamification & Milestone Badges */}
+      <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xs space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-amber-500" />
+            <h2 className="text-lg font-bold text-slate-900">Donor Loyalty & Milestone Badges</h2>
+          </div>
+          <span className="text-xs font-semibold text-slate-500">
+            {badges.length} badges unlocked
+          </span>
+        </div>
+        <DonorBadgesDisplay badges={badges} />
       </div>
 
       {/* Relevant Emergency Blood Requests */}
@@ -585,6 +617,17 @@ export const DonorDashboard = () => {
           </div>
         </form>
       </Modal>
+
+      {/* Pre-Donation Health Screening Modal */}
+      {healthModalOpen && (
+        <HealthQuestionnaireForm
+          onClose={() => setHealthModalOpen(false)}
+          onSuccess={() => {
+            setHealthModalOpen(false);
+            setActionSuccessMsg('Health Pre-Screening recorded successfully!');
+          }}
+        />
+      )}
     </div>
   );
 };

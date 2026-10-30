@@ -15,6 +15,9 @@ import { NearbyDonorsPage } from './pages/NearbyDonorsPage';
 import { RequestDetailsPage } from './pages/RequestDetailsPage';
 import { NotificationCenterPage } from './pages/NotificationCenterPage';
 import { AdminDashboard } from './pages/AdminDashboard';
+import { CompatibilityCalculatorPage } from './pages/CompatibilityCalculatorPage';
+import { InventoryPage } from './pages/InventoryPage';
+import { DonationCampsPage } from './pages/DonationCampsPage';
 
 export function App() {
   return (
@@ -26,6 +29,7 @@ export function App() {
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
+          <Route path="/compatibility" element={<CompatibilityCalculatorPage />} />
 
           {/* Donor Routes */}
           <Route
@@ -51,6 +55,22 @@ export function App() {
             element={
               <ProtectedRoute allowedRoles={['requester', 'admin', 'hospital_admin', 'hospital_staff', 'platform_admin']}>
                 <RequesterDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/inventory"
+            element={
+              <ProtectedRoute allowedRoles={['requester', 'admin', 'hospital_admin', 'hospital_staff', 'platform_admin']}>
+                <InventoryPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/camps"
+            element={
+              <ProtectedRoute>
+                <DonationCampsPage />
               </ProtectedRoute>
             }
           />

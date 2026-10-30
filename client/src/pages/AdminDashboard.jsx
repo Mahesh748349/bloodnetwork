@@ -5,6 +5,7 @@ import { deferralService } from '../services/deferralService';
 import { BloodGroupBadge } from '../components/BloodGroupBadge';
 import { StatusBadge, UrgencyBadge } from '../components/StatusBadge';
 import { Modal } from '../components/Modal';
+import { NetworkAnalytics } from '../components/NetworkAnalytics';
 import {
   Shield,
   Activity,
@@ -289,6 +290,9 @@ export const AdminDashboard = () => {
       {/* TAB 1: Real-Time Operational Analytics */}
       {activeTab === 'overview' && (
         <div className="space-y-8">
+          {/* Live Network-Wide Analytics & Shortage Alerts Component */}
+          <NetworkAnalytics />
+
           {/* Top Metric Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
             <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xs space-y-2">

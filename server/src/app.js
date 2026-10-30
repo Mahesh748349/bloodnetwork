@@ -12,6 +12,11 @@ const adminRoutes = require('./routes/adminRoutes');
 const organizationRoutes = require('./routes/organizationRoutes');
 const donationRoutes = require('./routes/donationRoutes');
 const deferralRoutes = require('./routes/deferralRoutes');
+const inventoryRoutes = require('./routes/inventoryRoutes');
+const badgeRoutes = require('./routes/badgeRoutes');
+const questionnaireRoutes = require('./routes/questionnaireRoutes');
+const analyticsRoutes = require('./routes/analyticsRoutes');
+const campRoutes = require('./routes/campRoutes');
 const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
@@ -60,6 +65,11 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/organizations', organizationRoutes);
 app.use('/api/donations', donationRoutes);
 app.use('/api/deferrals', deferralRoutes);
+app.use('/api/inventory', inventoryRoutes);
+app.use('/api/badges', badgeRoutes);
+app.use('/api/questionnaires', questionnaireRoutes);
+app.use('/api/analytics', analyticsRoutes);
+app.use('/api/camps', campRoutes);
 
 // 404 handler for unknown routes
 app.use((req, res, next) => {

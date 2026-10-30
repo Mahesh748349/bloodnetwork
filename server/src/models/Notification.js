@@ -30,6 +30,8 @@ const notificationSchema = new mongoose.Schema(
         'donor_declined',
         'status_update',
         'admin_alert',
+        'sos_broadcast',
+        'escalation_alert',
       ],
       required: true,
     },

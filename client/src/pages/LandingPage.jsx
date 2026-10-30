@@ -367,14 +367,22 @@ export const LandingPage = () => {
       {/* Blood Compatibility Matrix Table */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="bg-white rounded-3xl p-8 border border-slate-200 shadow-sm">
-          <div className="max-w-2xl mb-8 space-y-2">
-            <h2 className="text-xs font-bold uppercase tracking-wider text-rose-600">Reference Matrix</h2>
-            <h3 className="text-2xl sm:text-3xl font-extrabold text-slate-900">
-              Red Blood Cell Compatibility Guide
-            </h3>
-            <p className="text-sm text-slate-600">
-              Transparent compatibility references for emergency planning. Actual cross-matching and clinical testing are always mandatory before transfusion.
-            </p>
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-8 gap-4">
+            <div className="max-w-2xl space-y-2">
+              <h2 className="text-xs font-bold uppercase tracking-wider text-rose-600">Reference Matrix</h2>
+              <h3 className="text-2xl sm:text-3xl font-extrabold text-slate-900">
+                Red Blood Cell Compatibility Guide
+              </h3>
+              <p className="text-sm text-slate-600">
+                Transparent compatibility references for emergency planning. Actual cross-matching and clinical testing are always mandatory before transfusion.
+              </p>
+            </div>
+            <Link
+              to="/compatibility"
+              className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold shadow-md shadow-rose-600/20 transition flex items-center gap-2 shrink-0"
+            >
+              Open Interactive Calculator <ArrowRight className="w-4 h-4" />
+            </Link>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
